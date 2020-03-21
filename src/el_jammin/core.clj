@@ -1,6 +1,8 @@
 (ns el-jammin.core
   (:import [javafx.scene.input KeyCode KeyEvent]
-          [javafx.scene.control DialogEvent Dialog])
+           [javafx.scene.control DialogEvent Dialog]
+           [javafx.stage FileChooser]
+           [javafx.scene Node])
   (:require [el-jammin.konekcija]
             [cljfx.api :as fx]
             [cljfx.ext.node :as fx.ext.node]
@@ -17,7 +19,10 @@
   (atom {:poruka ""
          :prikazi false
          :stop-rec-disabled true
-         :rec-disabled false}))
+         :rec-disabled false
+         :file nil
+         :samples '()
+         :samples-title '()}))
 
 (defn button [{:keys [text event-type disable]}]
   {:fx/type :button
@@ -26,12 +31,13 @@
    :disable disable
    :on-action {:event/type event-type}})
 
-(defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled]}]
+(defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled file samples-title]}]
   {:fx/type fx/ext-many
    :desc [{:fx/type :stage
            :showing true
            :title "Pane examples"
            :scene {:fx/type :scene
+                   :on-key-pressed {:event/type ::press}
                    :root {:fx/type :border-pane
                           :top {:fx/type :grid-pane
                                 :vgap 1
@@ -93,6 +99,14 @@
                                             :on-value-changed {:event/type ::set-volume}
                                             :grid-pane/column 7
                                             :grid-pane/row 0}
+                                           {:fx/type fx.ext.node/with-tooltip-props
+                                            :props {:tooltip {:fx/type :tooltip :text "Load sample"}}
+                                            :desc {:fx/type :button
+                                                   :text "Load"
+                                                   :disable false
+                                                   :on-action {:event/type ::ucitaj-sample}}
+                                            :grid-pane/column 8
+                                            :grid-pane/row 0}
                                            {:fx/type :label
                                             :text poruka
                                             :text-fill "#ff0000"
@@ -113,6 +127,12 @@
                                          :closable false
                                          :content {:fx/type :list-view
                                                    :items kontra-side-bar
+                                                   :on-selected-item-changed {:event/type ::select}}}
+                                        {:fx/type :tab
+                                         :text "Samples"
+                                         :closable false
+                                         :content {:fx/type :list-view
+                                                   :items samples-title
                                                    :on-selected-item-changed {:event/type ::select}}}]}
                           :center  {:fx/type :label
                                     :text ";TODO"}
@@ -191,6 +211,17 @@
                           (do (recording-start (str "D:/"result".wav"))
                               (swap! *state assoc :stop-rec-disabled false)
                               (swap! *state assoc :rec-disabled true))))}]})
+
+(definst string [note 60 amp 1.0 dur 0.5 decay 30 coef 0.3 gate 1]
+  (let [freq (midicps note)
+        noize (* 0.8 (white-noise))
+        dly   (/ 1.0 freq)
+        plk   (pluck noize gate dly dly decay coef)
+        dist  (distort plk)
+        filt  (rlpf dist (* 12 freq) 0.6)
+        clp   (clip2 filt 0.8)
+        reverb (free-verb clp 0.4 0.8 0.2)]
+    (* amp (env-gen (perc 0.0001 dur) :action 0) reverb)))
 
 (defn my-sequencer [my-metronome beat pattern scale idx]
   (doseq [[sound ptn] @pattern]
@@ -301,6 +332,16 @@
   [beat]
     (my-sequencer m beat *ritam5 1/4 0))
 
+(defn ucitaj-file
+  [event]
+  (let [window (.getWindow (.getScene ^Node (.getTarget event)))
+        chooser (doto (FileChooser.)
+                  (.setTitle "Open File"))]
+    (when-let [file @(fx/on-fx-thread (.showOpenDialog chooser window))]
+      (swap! *state assoc :file file)
+      (swap! *state assoc :samples (cons (sample (str file)) (@*state :samples)))
+      (swap! *state assoc :samples-title (cons (:name (sample (str file))) (@*state :samples-title))))))
+
 (defn map-event-handler [e]
   (case (:event/type e)
     ::play (do (case selected-item
@@ -328,7 +369,21 @@
     ::rec (swap! *state assoc :prikazi true)
     ::rec-stop (do (recording-stop)
                    (swap! *state assoc :stop-rec-disabled true)
-                   (swap! *state assoc :rec-disabled false))))
+                   (swap! *state assoc :rec-disabled false))
+    ::ucitaj-sample (ucitaj-file (:fx/event e))
+    ::press (let [cd (.getCode ^KeyEvent (:fx/event e))]
+              (when (= cd KeyCode/A) (string (note :C1)))
+              (when (= cd KeyCode/W) (string (note :C#1)))
+              (when (= cd KeyCode/S) (string (note :D1)))
+              (when (= cd KeyCode/E) (string (note :D#1)))
+              (when (= cd KeyCode/D) (string (note :E1)))
+              (when (= cd KeyCode/F) (string (note :F1)))
+              (when (= cd KeyCode/R) (string (note :F#1)))
+              (when (= cd KeyCode/G) (string (note :G1)))
+              (when (= cd KeyCode/T) (string (note :G#1)))
+              (when (= cd KeyCode/H) (string (note :A1)))
+              (when (= cd KeyCode/Y) (string (note :A#1)))
+              (when (= cd KeyCode/J) (string (note :B1))))))
 
 (fx/mount-renderer
   *state
