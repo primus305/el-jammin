@@ -107,6 +107,14 @@
                                                    :on-action {:event/type ::ucitaj-sample}}
                                             :grid-pane/column 8
                                             :grid-pane/row 0}
+                                           {:fx/type fx.ext.node/with-tooltip-props
+                                            :props {:tooltip {:fx/type :tooltip :text "Loop sample"}}
+                                            :desc {:fx/type :button
+                                                   :text "Loop"
+                                                   :disable false
+                                                   :on-action {:event/type ::loop}}
+                                            :grid-pane/column 9
+                                            :grid-pane/row 0}
                                            {:fx/type :label
                                             :text poruka
                                             :text-fill "#ff0000"
@@ -342,6 +350,18 @@
       (swap! *state assoc :samples (cons (sample (str file)) (@*state :samples)))
       (swap! *state assoc :samples-title (cons (:name (sample (str file))) (@*state :samples-title))))))
 
+(definst sample-inst
+  [note 59 level 1 rate 1 loop? 0
+   attack 0 decay 1 sustain 1 release 0.1 curve -4 gate 1 buf (buffer 2048)]
+  (let [env (env-gen (adsr attack decay sustain release level curve)
+                     :gate gate
+                     :action FREE)]
+    (* env (scaled-play-buf 1 buf :level level :loop loop? :action FREE))))
+
+(defn play-sample
+  [smpl loop]
+  (sample-inst :loop? loop :buf (first (filter (fn [x] (= (:name x) smpl)) (@*state :samples)))))
+
 (defn map-event-handler [e]
   (case (:event/type e)
     ::play (do (case selected-item
@@ -355,7 +375,8 @@
                  "Hi-hat 3" (my-hihat3 (m))
                  "Hi-hat 4" (my-hihat4 (m))
                  "Hi-hat 5" (my-hihat5 (m))
-                 nil (swap! *state assoc :poruka "You must select instrument."))
+                 nil (swap! *state assoc :poruka "You must select instrument.")
+                 (play-sample selected-item 0))
                (if (not= selected-item nil)
                  (swap! *state assoc :poruka "")))
     ::stop (stop)
@@ -383,7 +404,13 @@
               (when (= cd KeyCode/T) (string (note :G#1)))
               (when (= cd KeyCode/H) (string (note :A1)))
               (when (= cd KeyCode/Y) (string (note :A#1)))
-              (when (= cd KeyCode/J) (string (note :B1))))))
+              (when (= cd KeyCode/J) (string (note :B1))))
+    ::loop (if (= selected-item nil)
+             (swap! *state assoc :poruka "You must select sample.")
+             (case (re-find #".wav" selected-item)
+               nil (swap! *state assoc :poruka "You must select sample.")
+               (do (play-sample selected-item 1)
+                   (swap! *state assoc :poruka ""))))))
 
 (fx/mount-renderer
   *state
