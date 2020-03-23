@@ -14,6 +14,7 @@
 (def kick-side-bar '("Kick & Clap 1" "Kick" "Kick & Clap 2" "Kick & Clap 3" "Kick & Snare"))
 (def kontra-side-bar '("Hi-hat 1" "Hi-hat 2" "Hi-hat 3" "Hi-hat 4" "Hi-hat 5"))
 (def selected-item nil)
+(def notes '("C" "C#" "D" "D#" "E" "F" "F#" "G" "G#" "A" "A#" "B"))
 
 (def *state
   (atom {:poruka ""
@@ -22,7 +23,10 @@
          :rec-disabled false
          :file nil
          :samples '()
-         :samples-title '()}))
+         :samples-title '()
+         :loop-line '()
+         :loop-end 0.0
+         :looper false}))
 
 (defn button [{:keys [text event-type disable]}]
   {:fx/type :button
@@ -31,11 +35,18 @@
    :disable disable
    :on-action {:event/type event-type}})
 
-(defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled file samples-title]}]
+(defn parse-int [s]
+  (Integer. (re-find  #"\d+" s )))
+
+(defn has-value [key1 value1 key2 value2]
+  (fn [m]
+    (and (= value1 (m key1)) (= value2 (m key2)))))
+
+(defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled file samples-title loop-line looper]}]
   {:fx/type fx/ext-many
    :desc [{:fx/type :stage
            :showing true
-           :title "Pane examples"
+           :title "el-jammin"
            :scene {:fx/type :scene
                    :on-key-pressed {:event/type ::press}
                    :root {:fx/type :border-pane
@@ -115,6 +126,32 @@
                                                    :on-action {:event/type ::loop}}
                                             :grid-pane/column 9
                                             :grid-pane/row 0}
+                                           (if (= looper false)
+                                             {:fx/type fx.ext.node/with-tooltip-props
+                                            :props {:tooltip {:fx/type :tooltip :text "Open looper"}}
+                                            :desc {:fx/type :button
+                                                   :text "Open"
+                                                   :disable false
+                                                   :on-action {:event/type ::open-looper}}
+                                            :grid-pane/column 10
+                                              :grid-pane/row 0}
+                                             {:fx/type fx.ext.node/with-tooltip-props
+                                              :props {:tooltip {:fx/type :tooltip :text "Close looper"}}
+                                              :desc {:fx/type :button
+                                                     :text "Close"
+                                                     :disable false
+                                                     :on-action {:event/type ::close-looper}}
+                                              :grid-pane/column 10
+                                              :grid-pane/row 0})
+                                             
+                                           {:fx/type fx.ext.node/with-tooltip-props
+                                            :props {:tooltip {:fx/type :tooltip :text "Start looping your line"}}
+                                            :desc {:fx/type :button
+                                                   :text "Looper"
+                                                   :disable (not looper)
+                                                   :on-action {:event/type ::looper}}
+                                            :grid-pane/column 11
+                                            :grid-pane/row 0}
                                            {:fx/type :label
                                             :text poruka
                                             :text-fill "#ff0000"
@@ -142,8 +179,42 @@
                                          :content {:fx/type :list-view
                                                    :items samples-title
                                                    :on-selected-item-changed {:event/type ::select}}}]}
-                          :center  {:fx/type :label
-                                    :text ";TODO"}
+                          :center  (if (= looper true)
+                                     {:fx/type :scroll-pane
+                                    :fit-to-width false
+                                    :content {:fx/type :grid-pane
+                                              :vgap 5
+                                              :hgap 10
+                                              :padding 5
+                                              :children  (concat
+                                                          (for [i (range 65)]
+                                                          {:fx/type :label
+                                                           :grid-pane/column (inc i)
+                                                           :grid-pane/row 0
+                                                           :grid-pane/hgrow :always
+                                                           :grid-pane/vgrow :always
+                                                           :text (str (double (/ i 4)))
+                                                           :on-mouse-clicked {:event/type ::loop-end :i (/ i 4)}
+                                                           :style (if (= i (* (@*state :loop-end) 4)) {:-fx-background-color :yellow} {})})
+                                                          (for [j (range 12)]
+                                                            {:fx/type :label
+                                                             :grid-pane/column 0
+                                                             :grid-pane/row (inc j)
+                                                             :grid-pane/hgrow :always
+                                                             :grid-pane/vgrow :always
+                                                             :text (nth notes j)})
+                                                          (for [j (range 12)
+                                                                i (range 65)]
+                                                            {:fx/type :button
+                                                            :grid-pane/column (inc i)
+                                                            :grid-pane/row (inc j)
+                                                            :grid-pane/hgrow :always
+                                                            :grid-pane/vgrow :always
+                                                            :pref-width 30
+                                                             :style {:-fx-background-color (if (= 1 (count (filter (has-value :i i :j j) loop-line))) :green :lightgray)}
+                                                             :on-action {:event/type ::play-note :j j :i i}}))}}
+                                     {:fx/type :label
+                                      :text ";TODO"})
                           :bottom {:fx/type :flow-pane
                                    :vgap 5
                                    :hgap 5
@@ -209,7 +280,7 @@
                                               ;;TODO...
                                               ;;More panels...
                                               ]}
-                          :pref-width 960
+                          :pref-width 1020
                           :pref-height 540}}}
           {:fx/type :text-input-dialog
            :showing prikazi
@@ -362,6 +433,22 @@
   [smpl loop]
   (sample-inst :loop? loop :buf (first (filter (fn [x] (= (:name x) smpl)) (@*state :samples)))))
 
+(defn play-note
+  [event]
+  (let [j (:j event)
+        i (:i event)]
+    (swap! *state assoc :loop-line (cons (assoc {} :i i :j j :beat (* i 0.25) :note (str (nth notes j)"1")) (@*state :loop-line)))
+    (string (note (str (nth notes j)"1")))))
+
+(defn play-looper
+  [beat]
+  (let [loop-line (@*state :loop-line)
+        next-beat (+ (@*state :loop-end) beat)]
+    (dotimes [x (count loop-line)]
+      (at (m (+ (:beat (nth loop-line x)) beat))
+          (string (note (:note (nth loop-line x))))))
+    (apply-by (m next-beat) #'play-looper [next-beat])))
+
 (defn map-event-handler [e]
   (case (:event/type e)
     ::play (do (case selected-item
@@ -410,7 +497,16 @@
              (case (re-find #".wav" selected-item)
                nil (swap! *state assoc :poruka "You must select sample.")
                (do (play-sample selected-item 1)
-                   (swap! *state assoc :poruka ""))))))
+                   (swap! *state assoc :poruka ""))))
+    ::play-note (play-note e)
+    ::looper (if (= 0.0 (@*state :loop-end))
+               (swap! *state assoc :poruka "You must select end of the loop.")
+               (do
+                 (swap! *state assoc :poruka "")
+                 (play-looper (m))))
+    ::loop-end (swap! *state assoc :loop-end (:i e))
+    ::open-looper (swap! *state assoc :looper true)
+    ::close-looper (swap! *state assoc :looper false)))
 
 (fx/mount-renderer
   *state
