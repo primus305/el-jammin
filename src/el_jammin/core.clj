@@ -211,7 +211,7 @@
                                                             :grid-pane/hgrow :always
                                                             :grid-pane/vgrow :always
                                                             :pref-width 30
-                                                             :style {:-fx-background-color (if (= 1 (count (filter (has-value :i i :j j) loop-line))) :green :lightgray)}
+                                                             :style {:-fx-background-color (if (= 0 (mod (count (filter (has-value :i i :j j) loop-line)) 2)) :lightgray :green)}
                                                              :on-action {:event/type ::play-note :j j :i i}}))}}
                                      {:fx/type :label
                                       :text ";TODO"})
@@ -449,6 +449,28 @@
           (string (note (:note (nth loop-line x))))))
     (apply-by (m next-beat) #'play-looper [next-beat])))
 
+(defn cleaned-loop-line
+  []
+  (loop [loop-line (@*state :loop-line)
+         cleaned-line '()]
+    (if (empty? loop-line)
+      cleaned-line
+      (let [i (:i (first loop-line))
+            j (:j (first loop-line))]
+        (recur (rest loop-line) (if (= (count (filter (has-value :i i :j j) cleaned-line)) 0)
+                                  (cons (first (filter (has-value :i i :j j) loop-line)) cleaned-line)
+                                  cleaned-line))))))
+
+(defn clean-loop-line
+  []
+  (let [cleaned-line-loop (cleaned-loop-line)]
+    (swap! *state assoc :loop-line cleaned-line-loop)))
+
+(defn clean-and-play
+  []
+  (clean-loop-line)
+  (play-looper (m)))
+
 (defn map-event-handler [e]
   (case (:event/type e)
     ::play (do (case selected-item
@@ -503,7 +525,7 @@
                (swap! *state assoc :poruka "You must select end of the loop.")
                (do
                  (swap! *state assoc :poruka "")
-                 (play-looper (m))))
+                 (clean-and-play)))
     ::loop-end (swap! *state assoc :loop-end (:i e))
     ::open-looper (swap! *state assoc :looper true)
     ::close-looper (swap! *state assoc :looper false)))
