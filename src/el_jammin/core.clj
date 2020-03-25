@@ -26,7 +26,9 @@
          :samples-title '()
          :loop-line '()
          :loop-end 0.0
-         :looper false}))
+         :looper false
+         :loop-lines []
+         :loop-lines-end []}))
 
 (defn button [{:keys [text event-type disable]}]
   {:fx/type :button
@@ -151,6 +153,14 @@
                                                    :disable (not looper)
                                                    :on-action {:event/type ::looper}}
                                             :grid-pane/column 11
+                                            :grid-pane/row 0}
+                                           {:fx/type fx.ext.node/with-tooltip-props
+                                            :props {:tooltip {:fx/type :tooltip :text "New looper"}}
+                                            :desc {:fx/type :button
+                                                   :text "New"
+                                                   :disable (not looper)
+                                                   :on-action {:event/type ::new-looper}}
+                                            :grid-pane/column 12
                                             :grid-pane/row 0}
                                            {:fx/type :label
                                             :text poruka
@@ -280,7 +290,7 @@
                                               ;;TODO...
                                               ;;More panels...
                                               ]}
-                          :pref-width 1020
+                          :pref-width 1070
                           :pref-height 540}}}
           {:fx/type :text-input-dialog
            :showing prikazi
@@ -441,17 +451,29 @@
     (string (note (str (nth notes j)"1")))))
 
 (defn play-looper
-  [beat]
-  (let [loop-line (@*state :loop-line)
-        next-beat (+ (@*state :loop-end) beat)]
+  [beat x]
+  (let [loop-line (x (@*state :loop-lines))
+        next-beat (+ (x (@*state :loop-lines-end)) beat)]
     (dotimes [x (count loop-line)]
       (at (m (+ (:beat (nth loop-line x)) beat))
           (string (note (:note (nth loop-line x))))))
-    (apply-by (m next-beat) #'play-looper [next-beat])))
+    (apply-by (m next-beat) #'play-looper [next-beat x])))
+
+(defn remove-from-loop-line
+  []
+  (loop [loop-line (@*state :loop-line)
+         cleaned-line (@*state :loop-line)]
+    (if (empty? loop-line)
+      cleaned-line
+      (let [i (:i (first loop-line))
+            j (:j (first loop-line))]
+        (recur (rest loop-line) (if (= 0 (mod (count (filter (has-value :i i :j j) cleaned-line)) 2))
+                                  (remove #(= (first (filter (has-value :i i :j j) cleaned-line)) %) cleaned-line)
+                                  cleaned-line))))))
 
 (defn cleaned-loop-line
   []
-  (loop [loop-line (@*state :loop-line)
+  (loop [loop-line (remove-from-loop-line)
          cleaned-line '()]
     (if (empty? loop-line)
       cleaned-line
@@ -464,12 +486,17 @@
 (defn clean-loop-line
   []
   (let [cleaned-line-loop (cleaned-loop-line)]
-    (swap! *state assoc :loop-line cleaned-line-loop)))
+    (swap! *state assoc :loop-line cleaned-line-loop)
+    (swap! *state assoc :loop-lines (conj (@*state :loop-lines) cleaned-line-loop))
+    (swap! *state assoc :loop-lines-end (conj (@*state :loop-lines-end) (@*state :loop-end)))))
 
 (defn clean-and-play
   []
   (clean-loop-line)
-  (play-looper (m)))
+  (case (count (@*state :loop-lines))
+    1 (play-looper (m) first)
+    2 (play-looper (m) second)
+    3 (play-looper (m) last)))
 
 (defn map-event-handler [e]
   (case (:event/type e)
@@ -528,7 +555,10 @@
                  (clean-and-play)))
     ::loop-end (swap! *state assoc :loop-end (:i e))
     ::open-looper (swap! *state assoc :looper true)
-    ::close-looper (swap! *state assoc :looper false)))
+    ::close-looper (swap! *state assoc :looper false)
+    ::new-looper (do
+                   (swap! *state assoc :loop-line '())
+                   (swap! *state assoc :loop-end 0.0))))
 
 (fx/mount-renderer
   *state
