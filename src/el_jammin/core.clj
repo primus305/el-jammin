@@ -21,6 +21,7 @@
          :prikazi false
          :stop-rec-disabled true
          :rec-disabled false
+         :set-speed-disabled false
          :file nil
          :samples '()
          :samples-title '()
@@ -28,7 +29,11 @@
          :loop-end 0.0
          :looper false
          :loop-lines []
-         :loop-lines-end []}))
+         :loop-lines-end []
+         :metronome m
+         :anim-status :stopped
+         :anim-duration 0.0
+         :to-x 0}))
 
 (defn button [{:keys [text event-type disable]}]
   {:fx/type :button
@@ -37,6 +42,22 @@
    :disable disable
    :on-action {:event/type event-type}})
 
+(defn- let-refs [refs desc]
+  {:fx/type fx/ext-let-refs
+   :refs refs
+   :desc desc})
+
+(defn- get-ref [ref]
+  {:fx/type fx/ext-get-ref
+   :ref ref})
+
+(defn start-transition-on
+  [{:keys [desc transition]}]
+  (let-refs {::transition-node desc}
+    (let [tn (get-ref ::transition-node)]
+      (let-refs {::transition (assoc transition :node tn)}
+        tn))))
+
 (defn parse-int [s]
   (Integer. (re-find  #"\d+" s )))
 
@@ -44,7 +65,7 @@
   (fn [m]
     (and (= value1 (m key1)) (= value2 (m key2)))))
 
-(defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled file samples-title loop-line looper]}]
+(defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled set-speed-disabled file samples-title loop-line looper metronome anim-status anim-duration to-x]}]
   {:fx/type fx/ext-many
    :desc [{:fx/type :stage
            :showing true
@@ -97,6 +118,7 @@
                                             :max 210
                                             :value (:bpm m)
                                             :show-tick-marks true
+                                            :disable set-speed-disabled
                                             :on-value-changed {:event/type ::set-speed}
                                             :grid-pane/column 5
                                             :grid-pane/row 0}
@@ -196,24 +218,39 @@
                                               :vgap 5
                                               :hgap 10
                                               :padding 5
-                                              :children  (concat
+                                              :children  (into
+                                                          (into  [{:fx/type start-transition-on
+                                                                 :transition {:fx/type :translate-transition
+                                                                              :duration [anim-duration :s]
+                                                                              :from-x 0
+                                                                              :to-x to-x
+                                                                              :interpolator :ease-in               
+                                                                              :cycle-count :indefinite
+                                                                              :status anim-status}
+                                                                 :grid-pane/row 0
+                                                                 :grid-pane/column 1
+                                                                 :desc {:fx/type :rectangle
+                                                                        :width 5
+                                                                        :height 10
+                                                                        :fill :red}}]
+                                                                 (concat
                                                           (for [i (range 65)]
                                                           {:fx/type :label
                                                            :grid-pane/column (inc i)
-                                                           :grid-pane/row 0
+                                                           :grid-pane/row 1
                                                            :grid-pane/hgrow :always
                                                            :grid-pane/vgrow :always
                                                            :text (str (double (/ i 4)))
                                                            :on-mouse-clicked {:event/type ::loop-end :i (/ i 4)}
                                                            :style (if (= i (* (@*state :loop-end) 4)) {:-fx-background-color :yellow} {})})
-                                                          (for [j (range 12)]
+                                                          (for [j (range 1 13)]
                                                             {:fx/type :label
                                                              :grid-pane/column 0
                                                              :grid-pane/row (inc j)
                                                              :grid-pane/hgrow :always
                                                              :grid-pane/vgrow :always
-                                                             :text (nth notes j)})
-                                                          (for [j (range 12)
+                                                             :text (nth notes (dec j))})
+                                                          (for [j (range 1 13)
                                                                 i (range 65)]
                                                             {:fx/type :button
                                                             :grid-pane/column (inc i)
@@ -221,8 +258,22 @@
                                                             :grid-pane/hgrow :always
                                                             :grid-pane/vgrow :always
                                                             :pref-width 30
-                                                             :style {:-fx-background-color (if (= 0 (mod (count (filter (has-value :i i :j j) loop-line)) 2)) :lightgray :green)}
-                                                             :on-action {:event/type ::play-note :j j :i i}}))}}
+                                                             :style {:-fx-background-color (if (= 0 (mod (count (filter (has-value :i i :j (dec j)) loop-line)) 2)) :lightgray :green)}
+                                                             :on-action {:event/type ::play-note :j (dec j) :i i}})))
+                                                          [{:fx/type start-transition-on
+                                                                 :transition {:fx/type :translate-transition
+                                                                              :duration [anim-duration :s]
+                                                                              :from-x 0
+                                                                              :to-x to-x
+                                                                              :interpolator :ease-in                
+                                                                              :cycle-count :indefinite
+                                                                              :status anim-status}
+                                                                 :grid-pane/row 14
+                                                                 :grid-pane/column 1
+                                                                 :desc {:fx/type :rectangle
+                                                                        :width 5
+                                                                        :height 10
+                                                                        :fill :red}}])}}
                                      {:fx/type :label
                                       :text ";TODO"})
                           :bottom {:fx/type :flow-pane
@@ -490,9 +541,17 @@
     (swap! *state assoc :loop-lines (conj (@*state :loop-lines) cleaned-line-loop))
     (swap! *state assoc :loop-lines-end (conj (@*state :loop-lines-end) (@*state :loop-end)))))
 
+(defn start-animation
+  []
+  (do
+    (swap! *state assoc :anim-duration (* (last (@*state :loop-lines-end)) (double (/ 60 (:bpm (@*state :metronome))))))
+    (swap! *state assoc :to-x (* 160 (last (@*state :loop-lines-end))))
+    (swap! *state assoc :anim-status :running)))
+
 (defn clean-and-play
   []
   (clean-loop-line)
+  (start-animation)
   (case (count (@*state :loop-lines))
     1 (play-looper (m) first)
     2 (play-looper (m) second)
@@ -515,9 +574,12 @@
                  (play-sample selected-item 0))
                (if (not= selected-item nil)
                  (swap! *state assoc :poruka "")))
-    ::stop (stop)
+    ::stop (do (stop)
+               (swap! *state assoc :anim-status :stopped)
+               (swap! *state assoc :set-speed-disabled false))
     ::set-volume (volume (/ (:fx/event e) 100))
-    ::set-speed (m :bpm (:fx/event e))
+    ::set-speed (do (m :bpm (:fx/event e))
+                    (swap! *state assoc :metronome m))
     ::set-volume-k (inst-volume! quick-kick (/ (:fx/event e) 100))
     ::set-volume-h (inst-volume! closed-hat2 (/ (:fx/event e) 100))
     ::set-volume-clap (inst-volume! clap (/ (:fx/event e) 100))
@@ -552,6 +614,7 @@
                (swap! *state assoc :poruka "You must select end of the loop.")
                (do
                  (swap! *state assoc :poruka "")
+                 (swap! *state assoc :set-speed-disabled true)
                  (clean-and-play)))
     ::loop-end (swap! *state assoc :loop-end (:i e))
     ::open-looper (swap! *state assoc :looper true)
