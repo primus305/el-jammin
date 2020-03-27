@@ -30,10 +30,13 @@
          :looper false
          :loop-lines []
          :loop-lines-end []
-         :metronome m
          :anim-status :stopped
          :anim-duration 0.0
-         :to-x 0}))
+         :to-x 0
+         :current-octave 1
+         :option "Note"
+         :chord-name "Major"
+         :chord-name-disabled true}))
 
 (defn button [{:keys [text event-type disable]}]
   {:fx/type :button
@@ -58,6 +61,21 @@
       (let-refs {::transition (assoc transition :node tn)}
         tn))))
 
+(defn radio-group [{:keys [options value on-action disable]}]
+  {:fx/type fx/ext-let-refs
+   :refs {::toggle-group {:fx/type :toggle-group}}
+   :desc {:fx/type :h-box
+          :padding 20
+          :spacing 10
+          :children (for [option options]
+                      {:fx/type :radio-button
+                       :toggle-group {:fx/type fx/ext-get-ref
+                                      :ref ::toggle-group}
+                       :selected (= option value)
+                       :text (str option)
+                       :disable disable
+                       :on-action (assoc on-action :option option)})}})
+
 (defn parse-int [s]
   (Integer. (re-find  #"\d+" s )))
 
@@ -65,7 +83,7 @@
   (fn [m]
     (and (= value1 (m key1)) (= value2 (m key2)))))
 
-(defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled set-speed-disabled file samples-title loop-line looper metronome anim-status anim-duration to-x]}]
+(defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled set-speed-disabled file samples-title loop-line looper anim-status anim-duration to-x current-octave option chord-name chord-name-disabled]}]
   {:fx/type fx/ext-many
    :desc [{:fx/type :stage
            :showing true
@@ -183,6 +201,30 @@
                                                    :disable (not looper)
                                                    :on-action {:event/type ::new-looper}}
                                             :grid-pane/column 12
+                                            :grid-pane/row 0}
+                                           {:fx/type :label
+                                            :text "Octave"
+                                            :grid-pane/column 13
+                                            :grid-pane/row 0}
+                                           {:fx/type :combo-box
+                                            :value current-octave
+                                            :on-value-changed {:event/type ::set-octave}
+                                            :items [1 2 3 4]
+                                            :grid-pane/column 14
+                                            :grid-pane/row 0}
+                                           {:fx/type radio-group
+                                            :options ["Note" "Chord"]
+                                            :value option
+                                            :disable false
+                                            :on-action {:event/type ::set-option}
+                                            :grid-pane/column 15
+                                            :grid-pane/row 0}
+                                           {:fx/type radio-group
+                                            :options ["Major" "Minor"]
+                                            :value chord-name
+                                            :disable chord-name-disabled
+                                            :on-action {:event/type ::set-chord-name}
+                                            :grid-pane/column 16
                                             :grid-pane/row 0}
                                            {:fx/type :label
                                             :text poruka
@@ -341,8 +383,8 @@
                                               ;;TODO...
                                               ;;More panels...
                                               ]}
-                          :pref-width 1070
-                          :pref-height 540}}}
+                          :pref-width 1600
+                          :pref-height 700}}}
           {:fx/type :text-input-dialog
            :showing prikazi
            :header-text "File name"
@@ -494,20 +536,32 @@
   [smpl loop]
   (sample-inst :loop? loop :buf (first (filter (fn [x] (= (:name x) smpl)) (@*state :samples)))))
 
+(defn play-chord [instrument root chord-name]
+  (doseq [note (chord root chord-name)]
+    (instrument note)))
+
 (defn play-note
   [event]
   (let [j (:j event)
-        i (:i event)]
-    (swap! *state assoc :loop-line (cons (assoc {} :i i :j j :beat (* i 0.25) :note (str (nth notes j)"1")) (@*state :loop-line)))
-    (string (note (str (nth notes j)"1")))))
+        i (:i event)
+        octave (@*state :current-octave)
+        option (@*state :option)
+        chord-name (keyword (clojure.string/lower-case (@*state :chord-name)))]
+    (swap! *state assoc :loop-line (cons (assoc {} :i i :j j :beat (* i 0.25) :note (str (nth notes j)octave) :option option) (@*state :loop-line)))
+    (if (= option "Note")
+      (string (note (str (nth notes j)octave)))
+      (play-chord string (note (str (nth notes j)octave)) chord-name))))
 
 (defn play-looper
   [beat x]
   (let [loop-line (x (@*state :loop-lines))
-        next-beat (+ (x (@*state :loop-lines-end)) beat)]
+        next-beat (+ (x (@*state :loop-lines-end)) beat)
+        chord-name (keyword (clojure.string/lower-case (@*state :chord-name)))]
     (dotimes [x (count loop-line)]
       (at (m (+ (:beat (nth loop-line x)) beat))
-          (string (note (:note (nth loop-line x))))))
+          (if (= (:option (nth loop-line x)) "Note")
+            (string (note (:note (nth loop-line x))))
+            (play-chord string (note (:note (nth loop-line x))) chord-name))))
     (apply-by (m next-beat) #'play-looper [next-beat x])))
 
 (defn remove-from-loop-line
@@ -544,7 +598,7 @@
 (defn start-animation
   []
   (do
-    (swap! *state assoc :anim-duration (* (last (@*state :loop-lines-end)) (double (/ 60 (:bpm (@*state :metronome))))))
+    (swap! *state assoc :anim-duration (* (last (@*state :loop-lines-end)) (double (/ 60 (:bpm m)))))
     (swap! *state assoc :to-x (* 160 (last (@*state :loop-lines-end))))
     (swap! *state assoc :anim-status :running)))
 
@@ -556,6 +610,25 @@
     1 (play-looper (m) first)
     2 (play-looper (m) second)
     3 (play-looper (m) last)))
+
+(defn play-from-keyboard
+  [event]
+  (let [cd (.getCode ^KeyEvent (:fx/event event))
+        octave (@*state :current-octave)
+        option (@*state :option)
+        chord-name (keyword (clojure.string/lower-case (@*state :chord-name)))]
+    (when (= cd KeyCode/A) (if (= option "Note") (string (note (str "C"octave))) (play-chord string (note (str "C"octave)) chord-name)))
+    (when (= cd KeyCode/W) (if (= option "Note") (string (note (str "C#"octave))) (play-chord string (note (str "C#"octave)) chord-name)))
+    (when (= cd KeyCode/S) (if (= option "Note") (string (note (str "D"octave))) (play-chord string (note (str "D"octave)) chord-name)))
+    (when (= cd KeyCode/E) (if (= option "Note") (string (note (str "D#"octave))) (play-chord string (note (str "D#"octave)) chord-name)))
+    (when (= cd KeyCode/D) (if (= option "Note") (string (note (str "E"octave))) (play-chord string (note (str "E"octave)) chord-name)))
+    (when (= cd KeyCode/F) (if (= option "Note") (string (note (str "F"octave))) (play-chord string (note (str "F"octave)) chord-name)))
+    (when (= cd KeyCode/R) (if (= option "Note") (string (note (str "F#"octave))) (play-chord string (note (str "F#"octave)) chord-name)))
+    (when (= cd KeyCode/G) (if (= option "Note") (string (note (str "G"octave))) (play-chord string (note (str "G"octave)) chord-name)))
+    (when (= cd KeyCode/T) (if (= option "Note") (string (note (str "G#"octave))) (play-chord string (note (str "G#"octave)) chord-name)))
+    (when (= cd KeyCode/H) (if (= option "Note") (string (note (str "A"octave))) (play-chord string (note (str "A"octave)) chord-name)))
+    (when (= cd KeyCode/Y) (if (= option "Note") (string (note (str "A#"octave))) (play-chord string (note (str "A#"octave)) chord-name)))
+    (when (= cd KeyCode/J) (if (= option "Note") (string (note (str "B"octave))) (play-chord string (note (str "B"octave)) chord-name)))))
 
 (defn map-event-handler [e]
   (case (:event/type e)
@@ -578,8 +651,7 @@
                (swap! *state assoc :anim-status :stopped)
                (swap! *state assoc :set-speed-disabled false))
     ::set-volume (volume (/ (:fx/event e) 100))
-    ::set-speed (do (m :bpm (:fx/event e))
-                    (swap! *state assoc :metronome m))
+    ::set-speed (m :bpm (:fx/event e))
     ::set-volume-k (inst-volume! quick-kick (/ (:fx/event e) 100))
     ::set-volume-h (inst-volume! closed-hat2 (/ (:fx/event e) 100))
     ::set-volume-clap (inst-volume! clap (/ (:fx/event e) 100))
@@ -590,19 +662,7 @@
                    (swap! *state assoc :stop-rec-disabled true)
                    (swap! *state assoc :rec-disabled false))
     ::ucitaj-sample (ucitaj-file (:fx/event e))
-    ::press (let [cd (.getCode ^KeyEvent (:fx/event e))]
-              (when (= cd KeyCode/A) (string (note :C1)))
-              (when (= cd KeyCode/W) (string (note :C#1)))
-              (when (= cd KeyCode/S) (string (note :D1)))
-              (when (= cd KeyCode/E) (string (note :D#1)))
-              (when (= cd KeyCode/D) (string (note :E1)))
-              (when (= cd KeyCode/F) (string (note :F1)))
-              (when (= cd KeyCode/R) (string (note :F#1)))
-              (when (= cd KeyCode/G) (string (note :G1)))
-              (when (= cd KeyCode/T) (string (note :G#1)))
-              (when (= cd KeyCode/H) (string (note :A1)))
-              (when (= cd KeyCode/Y) (string (note :A#1)))
-              (when (= cd KeyCode/J) (string (note :B1))))
+    ::press (play-from-keyboard e)
     ::loop (if (= selected-item nil)
              (swap! *state assoc :poruka "You must select sample.")
              (case (re-find #".wav" selected-item)
@@ -619,9 +679,17 @@
     ::loop-end (swap! *state assoc :loop-end (:i e))
     ::open-looper (swap! *state assoc :looper true)
     ::close-looper (swap! *state assoc :looper false)
-    ::new-looper (do
-                   (swap! *state assoc :loop-line '())
-                   (swap! *state assoc :loop-end 0.0))))
+    ::new-looper (if (>= (count (@*state :loop-lines)) 3)
+                   (swap! *state assoc :poruka "Maximum number of loops.")
+                   ((swap! *state assoc :loop-line '())
+                    (swap! *state assoc :loop-end 0.0)))
+    ::set-octave (swap! *state assoc :current-octave (:fx/event e))
+    ::set-option (do
+                   (swap! *state assoc :option (:option e))
+                   (if (= (:option e) "Chord")
+                     (swap! *state assoc :chord-name-disabled false)
+                     (swap! *state assoc :chord-name-disabled true)))
+    ::set-chord-name (swap! *state assoc :chord-name (:option e))))
 
 (fx/mount-renderer
   *state
