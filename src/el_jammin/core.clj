@@ -8,7 +8,9 @@
             [cljfx.ext.node :as fx.ext.node]
             [cljfx.ext.list-view :as fx.ext.list-view])
   (:use [overtone.core]
-        [overtone.inst.drum]))
+        [overtone.inst.drum]
+        [overtone.inst.piano]
+        [overtone.inst.synth]))
 
 (def m (metronome 128))
 (def kick-side-bar '("Kick & Clap 1" "Kick" "Kick & Clap 2" "Kick & Clap 3" "Kick & Snare"))
@@ -27,7 +29,6 @@
          :samples-title '()
          :loop-line '()
          :loop-end 0.0
-         :looper false
          :loop-lines []
          :loop-lines-end []
          :anim-status :stopped
@@ -36,7 +37,8 @@
          :current-octave 1
          :option "Note"
          :chord-name "Major"
-         :chord-name-disabled true}))
+         :chord-name-disabled true
+         :instrument "Piano"}))
 
 (defn button [{:keys [text event-type disable]}]
   {:fx/type :button
@@ -83,11 +85,12 @@
   (fn [m]
     (and (= value1 (m key1)) (= value2 (m key2)))))
 
-(defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled set-speed-disabled file samples-title loop-line looper anim-status anim-duration to-x current-octave option chord-name chord-name-disabled]}]
+(defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled set-speed-disabled file samples-title loop-line anim-status anim-duration to-x current-octave option chord-name chord-name-disabled instrument]}]
   {:fx/type fx/ext-many
    :desc [{:fx/type :stage
            :showing true
            :title "el-jammin"
+           :maximized true
            :scene {:fx/type :scene
                    :on-key-pressed {:event/type ::press}
                    :root {:fx/type :border-pane
@@ -168,63 +171,52 @@
                                                    :on-action {:event/type ::loop}}
                                             :grid-pane/column 9
                                             :grid-pane/row 0}
-                                           (if (= looper false)
-                                             {:fx/type fx.ext.node/with-tooltip-props
-                                            :props {:tooltip {:fx/type :tooltip :text "Open looper"}}
-                                            :desc {:fx/type :button
-                                                   :text "Open"
-                                                   :disable false
-                                                   :on-action {:event/type ::open-looper}}
-                                            :grid-pane/column 10
-                                              :grid-pane/row 0}
-                                             {:fx/type fx.ext.node/with-tooltip-props
-                                              :props {:tooltip {:fx/type :tooltip :text "Close looper"}}
-                                              :desc {:fx/type :button
-                                                     :text "Close"
-                                                     :disable false
-                                                     :on-action {:event/type ::close-looper}}
-                                              :grid-pane/column 10
-                                              :grid-pane/row 0})
-                                             
+                                           {:fx/type radio-group
+                                            :options ["Piano" "Guitar" "Synthesizer"]
+                                            :value instrument
+                                            :disable false
+                                            :on-action {:event/type ::set-instrument}
+                                            :grid-pane/column 16
+                                            :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "Start looping your line"}}
                                             :desc {:fx/type :button
                                                    :text "Looper"
-                                                   :disable (not looper)
+                                                   :disable false
                                                    :on-action {:event/type ::looper}}
-                                            :grid-pane/column 11
+                                            :grid-pane/column 17
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "New looper"}}
                                             :desc {:fx/type :button
                                                    :text "New"
-                                                   :disable (not looper)
+                                                   :disable false
                                                    :on-action {:event/type ::new-looper}}
-                                            :grid-pane/column 12
+                                            :grid-pane/column 18
                                             :grid-pane/row 0}
                                            {:fx/type :label
                                             :text "Octave"
-                                            :grid-pane/column 13
+                                            :grid-pane/column 19
                                             :grid-pane/row 0}
                                            {:fx/type :combo-box
                                             :value current-octave
                                             :on-value-changed {:event/type ::set-octave}
-                                            :items [1 2 3 4]
-                                            :grid-pane/column 14
+                                            :items [1 2 3 4 5 6 7 8]
+                                            :grid-pane/column 20
                                             :grid-pane/row 0}
                                            {:fx/type radio-group
                                             :options ["Note" "Chord"]
                                             :value option
                                             :disable false
                                             :on-action {:event/type ::set-option}
-                                            :grid-pane/column 15
+                                            :grid-pane/column 21
                                             :grid-pane/row 0}
                                            {:fx/type radio-group
                                             :options ["Major" "Minor"]
                                             :value chord-name
                                             :disable chord-name-disabled
                                             :on-action {:event/type ::set-chord-name}
-                                            :grid-pane/column 16
+                                            :grid-pane/column 22
                                             :grid-pane/row 0}
                                            {:fx/type :label
                                             :text poruka
@@ -233,7 +225,7 @@
                                             :grid-pane/row 1
                                             :grid-pane/column-span 3}]}
                           :left {:fx/type :tab-pane
-                                 :pref-width 300
+                                 :pref-width 350
                                  :pref-height 540
                                  :tabs [{:fx/type :tab
                                          :text "Kick"
@@ -253,8 +245,7 @@
                                          :content {:fx/type :list-view
                                                    :items samples-title
                                                    :on-selected-item-changed {:event/type ::select}}}]}
-                          :center  (if (= looper true)
-                                     {:fx/type :scroll-pane
+                          :center  {:fx/type :scroll-pane
                                     :fit-to-width false
                                     :content {:fx/type :grid-pane
                                               :vgap 5
@@ -275,7 +266,7 @@
                                                                         :width 5
                                                                         :height 10
                                                                         :fill :red}}]
-                                                                 (concat
+                                                               (concat
                                                           (for [i (range 65)]
                                                           {:fx/type :label
                                                            :grid-pane/column (inc i)
@@ -302,7 +293,8 @@
                                                             :pref-width 30
                                                              :style {:-fx-background-color (if (= 0 (mod (count (filter (has-value :i i :j (dec j)) loop-line)) 2)) :lightgray :green)}
                                                              :on-action {:event/type ::play-note :j (dec j) :i i}})))
-                                                          [{:fx/type start-transition-on
+                                                          
+                                                            [{:fx/type start-transition-on
                                                                  :transition {:fx/type :translate-transition
                                                                               :duration [anim-duration :s]
                                                                               :from-x 0
@@ -315,15 +307,16 @@
                                                                  :desc {:fx/type :rectangle
                                                                         :width 5
                                                                         :height 10
-                                                                        :fill :red}}])}}
-                                     {:fx/type :label
-                                      :text ";TODO"})
+                                                                        :fill :red}}]
+                                                            )}}
                           :bottom {:fx/type :flow-pane
                                    :vgap 5
                                    :hgap 5
                                    :padding 5
+                                   :pref-height 380
                                    :children [{:fx/type :titled-pane
                                                :text "Control volume pane"
+                                               :pref-height 360
                                                :content {:fx/type :grid-pane
                                                          :vgap 20
                                                          :hgap 40
@@ -331,6 +324,8 @@
                                                          :children [{:fx/type :slider
                                                                      :min 0
                                                                      :max 160
+                                                                     :pref-height 285
+                                                                     :pref-width 50
                                                                      :value (* 100 (volume))
                                                                      :orientation :vertical
                                                                      :show-tick-marks true
@@ -340,6 +335,8 @@
                                                                     {:fx/type :slider
                                                                      :min 0
                                                                      :max 160
+                                                                     :pref-height 285
+                                                                     :pref-width 50
                                                                      :show-tick-marks true
                                                                      :value (* 100 (volume))
                                                                      :orientation :vertical
@@ -349,6 +346,8 @@
                                                                     {:fx/type :slider
                                                                      :min 0
                                                                      :max 160
+                                                                     :pref-height 285
+                                                                     :pref-width 50
                                                                      :value (* 100 (volume))
                                                                      :show-tick-marks true
                                                                      :orientation :vertical
@@ -358,6 +357,8 @@
                                                                     {:fx/type :slider
                                                                      :min 0
                                                                      :max 160
+                                                                     :pref-height 285
+                                                                     :pref-width 50
                                                                      :value (* 100 (volume))
                                                                      :show-tick-marks true
                                                                      :orientation :vertical
@@ -383,8 +384,7 @@
                                               ;;TODO...
                                               ;;More panels...
                                               ]}
-                          :pref-width 1600
-                          :pref-height 700}}}
+                          }}}
           {:fx/type :text-input-dialog
            :showing prikazi
            :header-text "File name"
@@ -541,28 +541,28 @@
     (instrument note)))
 
 (defn play-note
-  [event]
+  [event instr]
   (let [j (:j event)
         i (:i event)
         octave (@*state :current-octave)
         option (@*state :option)
         chord-name (keyword (clojure.string/lower-case (@*state :chord-name)))]
-    (swap! *state assoc :loop-line (cons (assoc {} :i i :j j :beat (* i 0.25) :note (str (nth notes j)octave) :option option) (@*state :loop-line)))
+    (swap! *state assoc :loop-line (cons (assoc {} :i i :j j :beat (* i 0.25) :note (str (nth notes j)octave) :option option :chord-name chord-name) (@*state :loop-line)))
     (if (= option "Note")
-      (string (note (str (nth notes j)octave)))
-      (play-chord string (note (str (nth notes j)octave)) chord-name))))
+      (instr (note (str (nth notes j)octave)))
+      (play-chord instr (note (str (nth notes j)octave)) chord-name))))
 
 (defn play-looper
-  [beat x]
-  (let [loop-line (x (@*state :loop-lines))
-        next-beat (+ (x (@*state :loop-lines-end)) beat)
-        chord-name (keyword (clojure.string/lower-case (@*state :chord-name)))]
-    (dotimes [x (count loop-line)]
-      (at (m (+ (:beat (nth loop-line x)) beat))
-          (if (= (:option (nth loop-line x)) "Note")
-            (string (note (:note (nth loop-line x))))
-            (play-chord string (note (:note (nth loop-line x))) chord-name))))
-    (apply-by (m next-beat) #'play-looper [next-beat x])))
+  [beat x instr]
+    (let [loop-line (x (@*state :loop-lines))
+          next-beat (+ (x (@*state :loop-lines-end)) beat)
+          chord-name (keyword (clojure.string/lower-case (@*state :chord-name)))]
+      (dotimes [x (count loop-line)]
+        (at (m (+ (:beat (nth loop-line x)) beat))
+            (if (= (:option (nth loop-line x)) "Note")
+              (instr (note (:note (nth loop-line x))))
+              (play-chord instr (note (:note (nth loop-line x))) (:chord-name (nth loop-line x))))))
+      (apply-by (m next-beat) #'play-looper [next-beat x instr])))
 
 (defn remove-from-loop-line
   []
@@ -590,10 +590,11 @@
 
 (defn clean-loop-line
   []
-  (let [cleaned-line-loop (cleaned-loop-line)]
-    (swap! *state assoc :loop-line cleaned-line-loop)
-    (swap! *state assoc :loop-lines (conj (@*state :loop-lines) cleaned-line-loop))
-    (swap! *state assoc :loop-lines-end (conj (@*state :loop-lines-end) (@*state :loop-end)))))
+  (when (< (count (@*state :loop-lines)) 3)
+    (let [cleaned-line-loop (cleaned-loop-line)]
+      (swap! *state assoc :loop-line cleaned-line-loop)
+      (swap! *state assoc :loop-lines (conj (@*state :loop-lines) cleaned-line-loop))
+      (swap! *state assoc :loop-lines-end (conj (@*state :loop-lines-end) (@*state :loop-end))))))
 
 (defn start-animation
   []
@@ -603,32 +604,32 @@
     (swap! *state assoc :anim-status :running)))
 
 (defn clean-and-play
-  []
+  [instr]
   (clean-loop-line)
   (start-animation)
   (case (count (@*state :loop-lines))
-    1 (play-looper (m) first)
-    2 (play-looper (m) second)
-    3 (play-looper (m) last)))
+    1 (play-looper (m) first instr)
+    2 (play-looper (m) second instr)
+    3 (play-looper (m) last instr)))
 
 (defn play-from-keyboard
-  [event]
+  [event instr]
   (let [cd (.getCode ^KeyEvent (:fx/event event))
         octave (@*state :current-octave)
         option (@*state :option)
         chord-name (keyword (clojure.string/lower-case (@*state :chord-name)))]
-    (when (= cd KeyCode/A) (if (= option "Note") (string (note (str "C"octave))) (play-chord string (note (str "C"octave)) chord-name)))
-    (when (= cd KeyCode/W) (if (= option "Note") (string (note (str "C#"octave))) (play-chord string (note (str "C#"octave)) chord-name)))
-    (when (= cd KeyCode/S) (if (= option "Note") (string (note (str "D"octave))) (play-chord string (note (str "D"octave)) chord-name)))
-    (when (= cd KeyCode/E) (if (= option "Note") (string (note (str "D#"octave))) (play-chord string (note (str "D#"octave)) chord-name)))
-    (when (= cd KeyCode/D) (if (= option "Note") (string (note (str "E"octave))) (play-chord string (note (str "E"octave)) chord-name)))
-    (when (= cd KeyCode/F) (if (= option "Note") (string (note (str "F"octave))) (play-chord string (note (str "F"octave)) chord-name)))
-    (when (= cd KeyCode/R) (if (= option "Note") (string (note (str "F#"octave))) (play-chord string (note (str "F#"octave)) chord-name)))
-    (when (= cd KeyCode/G) (if (= option "Note") (string (note (str "G"octave))) (play-chord string (note (str "G"octave)) chord-name)))
-    (when (= cd KeyCode/T) (if (= option "Note") (string (note (str "G#"octave))) (play-chord string (note (str "G#"octave)) chord-name)))
-    (when (= cd KeyCode/H) (if (= option "Note") (string (note (str "A"octave))) (play-chord string (note (str "A"octave)) chord-name)))
-    (when (= cd KeyCode/Y) (if (= option "Note") (string (note (str "A#"octave))) (play-chord string (note (str "A#"octave)) chord-name)))
-    (when (= cd KeyCode/J) (if (= option "Note") (string (note (str "B"octave))) (play-chord string (note (str "B"octave)) chord-name)))))
+    (when (= cd KeyCode/A) (if (= option "Note") (instr (note (str "C"octave))) (play-chord instr (note (str "C"octave)) chord-name)))
+    (when (= cd KeyCode/W) (if (= option "Note") (instr (note (str "C#"octave))) (play-chord instr (note (str "C#"octave)) chord-name)))
+    (when (= cd KeyCode/S) (if (= option "Note") (instr (note (str "D"octave))) (play-chord instr (note (str "D"octave)) chord-name)))
+    (when (= cd KeyCode/E) (if (= option "Note") (instr (note (str "D#"octave))) (play-chord instr (note (str "D#"octave)) chord-name)))
+    (when (= cd KeyCode/D) (if (= option "Note") (instr (note (str "E"octave))) (play-chord instr (note (str "E"octave)) chord-name)))
+    (when (= cd KeyCode/F) (if (= option "Note") (instr (note (str "F"octave))) (play-chord instr (note (str "F"octave)) chord-name)))
+    (when (= cd KeyCode/R) (if (= option "Note") (instr (note (str "F#"octave))) (play-chord instr (note (str "F#"octave)) chord-name)))
+    (when (= cd KeyCode/G) (if (= option "Note") (instr (note (str "G"octave))) (play-chord instr (note (str "G"octave)) chord-name)))
+    (when (= cd KeyCode/T) (if (= option "Note") (instr (note (str "G#"octave))) (play-chord instr (note (str "G#"octave)) chord-name)))
+    (when (= cd KeyCode/H) (if (= option "Note") (instr (note (str "A"octave))) (play-chord instr (note (str "A"octave)) chord-name)))
+    (when (= cd KeyCode/Y) (if (= option "Note") (instr (note (str "A#"octave))) (play-chord instr (note (str "A#"octave)) chord-name)))
+    (when (= cd KeyCode/J) (if (= option "Note") (instr (note (str "B"octave))) (play-chord instr (note (str "B"octave)) chord-name)))))
 
 (defn map-event-handler [e]
   (case (:event/type e)
@@ -662,23 +663,30 @@
                    (swap! *state assoc :stop-rec-disabled true)
                    (swap! *state assoc :rec-disabled false))
     ::ucitaj-sample (ucitaj-file (:fx/event e))
-    ::press (play-from-keyboard e)
+    ::press (case (@*state :instrument)
+              "Piano" (play-from-keyboard e piano)
+              "Guitar" (play-from-keyboard e string)
+              "Synthesizer" (play-from-keyboard e overpad))
     ::loop (if (= selected-item nil)
              (swap! *state assoc :poruka "You must select sample.")
              (case (re-find #".wav" selected-item)
                nil (swap! *state assoc :poruka "You must select sample.")
                (do (play-sample selected-item 1)
                    (swap! *state assoc :poruka ""))))
-    ::play-note (play-note e)
+    ::play-note (case (@*state :instrument)
+                  "Piano" (play-note e piano)
+                  "Guitar" (play-note e string)
+                  "Synthesizer" (play-note e overpad))
     ::looper (if (= 0.0 (@*state :loop-end))
                (swap! *state assoc :poruka "You must select end of the loop.")
                (do
                  (swap! *state assoc :poruka "")
                  (swap! *state assoc :set-speed-disabled true)
-                 (clean-and-play)))
+                 (case (@*state :instrument)
+                   "Piano" (clean-and-play piano)
+                   "Guitar" (clean-and-play string)
+                   "Synthesizer" (clean-and-play overpad))))
     ::loop-end (swap! *state assoc :loop-end (:i e))
-    ::open-looper (swap! *state assoc :looper true)
-    ::close-looper (swap! *state assoc :looper false)
     ::new-looper (if (>= (count (@*state :loop-lines)) 3)
                    (swap! *state assoc :poruka "Maximum number of loops.")
                    ((swap! *state assoc :loop-line '())
@@ -689,7 +697,8 @@
                    (if (= (:option e) "Chord")
                      (swap! *state assoc :chord-name-disabled false)
                      (swap! *state assoc :chord-name-disabled true)))
-    ::set-chord-name (swap! *state assoc :chord-name (:option e))))
+    ::set-chord-name (swap! *state assoc :chord-name (:option e))
+    ::set-instrument (swap! *state assoc :instrument (:option e))))
 
 (fx/mount-renderer
   *state
