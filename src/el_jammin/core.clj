@@ -365,6 +365,50 @@
                                                                      :grid-pane/column 3
                                                                      :grid-pane/row 0
                                                                      :on-value-changed {:event/type ::set-volume-snare}}
+                                                                    {:fx/type :slider
+                                                                     :min 0
+                                                                     :max 160
+                                                                     :pref-height 285
+                                                                     :pref-width 50
+                                                                     :show-tick-marks true
+                                                                     :value (* 100 (volume))
+                                                                     :orientation :vertical
+                                                                     :grid-pane/column 4
+                                                                     :grid-pane/row 0
+                                                                     :on-value-changed {:event/type ::set-volume-piano}}
+                                                                    {:fx/type :slider
+                                                                     :min 0
+                                                                     :max 160
+                                                                     :pref-height 285
+                                                                     :pref-width 50
+                                                                     :value (* 100 (volume))
+                                                                     :show-tick-marks true
+                                                                     :orientation :vertical
+                                                                     :grid-pane/column 5
+                                                                     :grid-pane/row 0
+                                                                     :on-value-changed {:event/type ::set-volume-guitar}}
+                                                                    {:fx/type :slider
+                                                                     :min 0
+                                                                     :max 160
+                                                                     :pref-height 285
+                                                                     :pref-width 50
+                                                                     :value (* 100 (volume))
+                                                                     :show-tick-marks true
+                                                                     :orientation :vertical
+                                                                     :grid-pane/column 6
+                                                                     :grid-pane/row 0
+                                                                     :on-value-changed {:event/type ::set-volume-synth}}
+                                                                    {:fx/type :slider
+                                                                     :min 0
+                                                                     :max 160
+                                                                     :pref-height 285
+                                                                     :pref-width 50
+                                                                     :value (* 100 (volume))
+                                                                     :show-tick-marks true
+                                                                     :orientation :vertical
+                                                                     :grid-pane/column 7
+                                                                     :grid-pane/row 0
+                                                                     :on-value-changed {:event/type ::set-volume-sample}}
                                                                     {:fx/type :label
                                                                      :text "Kick"
                                                                      :grid-pane/column 0
@@ -380,6 +424,22 @@
                                                                     {:fx/type :label
                                                                      :text "Snare"
                                                                      :grid-pane/column 3
+                                                                     :grid-pane/row 1}
+                                                                    {:fx/type :label
+                                                                     :text "Piano"
+                                                                     :grid-pane/column 4
+                                                                     :grid-pane/row 1}
+                                                                    {:fx/type :label
+                                                                     :text "Guitar"
+                                                                     :grid-pane/column 5
+                                                                     :grid-pane/row 1}
+                                                                    {:fx/type :label
+                                                                     :text "Synth"
+                                                                     :grid-pane/column 6
+                                                                     :grid-pane/row 1}
+                                                                    {:fx/type :label
+                                                                     :text "Sample"
+                                                                     :grid-pane/column 7
                                                                      :grid-pane/row 1}]}}
                                               ;;TODO...
                                               ;;More panels...
@@ -657,6 +717,10 @@
     ::set-volume-h (inst-volume! closed-hat2 (/ (:fx/event e) 100))
     ::set-volume-clap (inst-volume! clap (/ (:fx/event e) 100))
     ::set-volume-snare (inst-volume! noise-snare (/ (:fx/event e) 100))
+    ::set-volume-piano (inst-volume! piano (/ (:fx/event e) 100))
+    ::set-volume-guitar (inst-volume! string (/ (:fx/event e) 100))
+    ::set-volume-synth (inst-volume! overpad (/ (:fx/event e) 100))
+    ::set-volume-sample (inst-volume! sample-inst (/ (:fx/event e) 100))
     ::select (def selected-item (:fx/event e))
     ::rec (swap! *state assoc :prikazi true)
     ::rec-stop (do (recording-stop)
