@@ -10,13 +10,17 @@
   (:use [overtone.core]
         [overtone.inst.drum]
         [overtone.inst.piano]
-        [overtone.inst.synth]))
+        [overtone.inst.synth]
+        [overtone.studio util]))
 
 (def m (metronome 128))
 (def kick-side-bar '("Kick & Clap 1" "Kick" "Kick & Clap 2" "Kick & Clap 3" "Kick & Snare"))
 (def kontra-side-bar '("Hi-hat 1" "Hi-hat 2" "Hi-hat 3" "Hi-hat 4" "Hi-hat 5"))
 (def selected-item nil)
 (def notes '("C" "C#" "D" "D#" "E" "F" "F#" "G" "G#" "A" "A#" "B"))
+
+(defonce SCOPE-BUF-SIZE 2048)
+(def scope (atom {}))
 
 (def *state
   (atom {:poruka ""
@@ -84,6 +88,23 @@
 (defn has-value [key1 value1 key2 value2]
   (fn [m]
     (and (= value1 (m key1)) (= value2 (m key2)))))
+
+(defn update-scope-data
+  [s]
+  (let [{:keys [buf size y-arrays x-array]} s
+        frames    (if (buffer-live? buf)
+                    (buffer-read buf)
+                    [])
+        step      (/ (:size buf) 1100)
+        y-scale   100
+        [y-a y-b] @y-arrays]
+
+    (when-not (empty? frames)
+      (dotimes [x 1100]
+        (aset ^doubles y-b x
+              (double (* y-scale
+                         (aget ^floats frames (unchecked-multiply x step))))))
+      (reset! y-arrays [y-b y-a]))))
 
 (defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled set-speed-disabled file samples-title loop-line anim-status anim-duration to-x current-octave option chord-name chord-name-disabled instrument]}]
   {:fx/type fx/ext-many
@@ -311,7 +332,7 @@
                                                             )}}
                           :bottom {:fx/type :flow-pane
                                    :vgap 5
-                                   :hgap 5
+                                   :hgap 50
                                    :padding 5
                                    :pref-height 380
                                    :children [{:fx/type :titled-pane
@@ -441,8 +462,10 @@
                                                                      :text "Sample"
                                                                      :grid-pane/column 7
                                                                      :grid-pane/row 1}]}}
-                                              ;;TODO...
-                                              ;;More panels...
+                                              {:fx/type :canvas
+                                               :width 1100
+                                               :height 300
+                                               :style-class "canvas"}
                                               ]}
                           }}}
           {:fx/type :text-input-dialog
@@ -691,6 +714,80 @@
     (when (= cd KeyCode/Y) (if (= option "Note") (instr (note (str "A#"octave))) (play-chord instr (note (str "A#"octave)) chord-name)))
     (when (= cd KeyCode/J) (if (= option "Note") (instr (note (str "B"octave))) (play-chord instr (note (str "B"octave)) chord-name)))))
 
+(defn reset-data-arrays
+  [scope]
+  (let [x-array   (scope :x-array)
+        [y-a y-b] @(scope :y-arrays)]
+
+    (dotimes [i 1100]
+      (aset ^doubles x-array i (double i)))
+
+    (dotimes [i 1100]
+      (aset ^doubles y-a i (double (/ 300 2)))
+      (aset ^doubles y-b i (double (/ 300 2))))))
+
+(defn start-bus-synth
+  [bus buf control-rate?]
+  (if control-rate?
+    (control-bus->buf bus buf)
+    (bus->buf bus buf)))
+
+(defn scope-bus
+  [s control-rate?]
+  (let [buf       (buffer SCOPE-BUF-SIZE)
+        bus-synth (start-bus-synth (:thing s) buf control-rate?)]
+    (assoc s
+           :size SCOPE-BUF-SIZE
+           :bus-synth bus-synth
+           :buf buf)))
+
+(defn create-scope
+  [thing kind keep-on-top width height]
+  (let [thing-id (to-sc-id thing)
+        x-array  (double-array width)
+        y-a      (double-array width)
+        y-b      (double-array width)
+        scope    {:id     thing-id
+                  :size       0
+                  :thing      thing
+                  :kind       kind
+                  :x-array    x-array
+                  :y-arrays   (atom [y-a y-b])}
+
+        _        (reset-data-arrays scope)]
+    
+    (case kind
+      :control-bus (scope-bus scope true)
+      :bus (scope-bus scope false)
+      :audio-bus (scope-bus scope false))))
+
+(defn draw-canvas
+  [context]
+  (let [[y-a y-b] @(:y-arrays (:scope @scope))
+        x-array (:x-array (:scope @scope))]
+    (.clearRect context 0 -150 1100 300)
+    (.clearRect context 0 0 1100 300)
+    (.setFill context javafx.scene.paint.Color/BLUE)
+    (.fillPolygon context x-array y-a 1100)))
+
+(defn loop-timer
+  [event]
+  (let [scene (.getScene ^Node (.getTarget event))
+        canvas (.lookup scene ".canvas")
+        context (.getGraphicsContext2D canvas)
+        timer (proxy [javafx.animation.AnimationTimer] []
+                (handle [now]
+                  (update-scope-data (:scope @scope))
+                  (draw-canvas context)))]
+    (.translate context 0.0 150.0)
+    (.start timer)))
+
+(defn start-scope
+  [event]
+  (let [s  (create-scope 1 :audio-bus false 1100 300)]
+    (swap! scope assoc :scope s)
+    (loop-timer event)))
+
 (defn map-event-handler [e]
   (case (:event/type e)
     ::play (do (case selected-item
@@ -707,7 +804,8 @@
                  nil (swap! *state assoc :poruka "You must select instrument.")
                  (play-sample selected-item 0))
                (if (not= selected-item nil)
-                 (swap! *state assoc :poruka "")))
+                 (swap! *state assoc :poruka ""))
+               (start-scope (:fx/event e)))
     ::stop (do (stop)
                (swap! *state assoc :anim-status :stopped)
                (swap! *state assoc :set-speed-disabled false))
