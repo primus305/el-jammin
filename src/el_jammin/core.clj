@@ -20,7 +20,8 @@
 (def notes '("C" "C#" "D" "D#" "E" "F" "F#" "G" "G#" "A" "A#" "B"))
 
 (defonce SCOPE-BUF-SIZE 2048)
-(def scope (atom {}))
+(def scope
+  (atom {:first-time true}))
 
 (def *state
   (atom {:poruka ""
@@ -336,7 +337,7 @@
                                    :padding 5
                                    :pref-height 380
                                    :children [{:fx/type :titled-pane
-                                               :text "Control volume pane"
+                                               :text "Volume control"
                                                :pref-height 360
                                                :content {:fx/type :grid-pane
                                                          :vgap 20
@@ -462,10 +463,13 @@
                                                                      :text "Sample"
                                                                      :grid-pane/column 7
                                                                      :grid-pane/row 1}]}}
-                                              {:fx/type :canvas
-                                               :width 1100
-                                               :height 300
-                                               :style-class "canvas"}
+                                              {:fx/type :titled-pane
+                                               :text "Visualizer"
+                                               :pref-height 360
+                                               :content {:fx/type :canvas
+                                                         :width 1100
+                                                         :height 300
+                                                         :style-class "canvas"}}
                                               ]}
                           }}}
           {:fx/type :text-input-dialog
@@ -779,7 +783,11 @@
                 (handle [now]
                   (update-scope-data (:scope @scope))
                   (draw-canvas context)))]
-    (.translate context 0.0 150.0)
+    (when (= (:first-time @scope) true)
+      (do
+        (.translate context 0.0 150.0)
+        (swap! scope assoc :first-time false)))
+    (swap! scope assoc :timer timer)
     (.start timer)))
 
 (defn start-scope
@@ -787,6 +795,16 @@
   (let [s  (create-scope 1 :audio-bus false 1100 300)]
     (swap! scope assoc :scope s)
     (loop-timer event)))
+
+(defn stop-timer
+  [event]
+  (let [timer (:timer @scope)
+        scene (.getScene ^Node (.getTarget event))
+        canvas (.lookup scene ".canvas")
+        context (.getGraphicsContext2D canvas)]
+    (.stop timer)
+    (.clearRect context 0 -150 1100 300)
+    (.clearRect context 0 0 1100 300)))
 
 (defn map-event-handler [e]
   (case (:event/type e)
@@ -808,7 +826,8 @@
                (start-scope (:fx/event e)))
     ::stop (do (stop)
                (swap! *state assoc :anim-status :stopped)
-               (swap! *state assoc :set-speed-disabled false))
+               (swap! *state assoc :set-speed-disabled false)
+               (stop-timer (:fx/event e)))
     ::set-volume (volume (/ (:fx/event e) 100))
     ::set-speed (m :bpm (:fx/event e))
     ::set-volume-k (inst-volume! quick-kick (/ (:fx/event e) 100))
