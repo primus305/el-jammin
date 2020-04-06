@@ -2,7 +2,8 @@
   (:import [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.control DialogEvent Dialog]
            [javafx.stage FileChooser]
-           [javafx.scene Node])
+           [javafx.scene Node]
+           [javafx.scene.canvas Canvas])
   (:require [el-jammin.konekcija]
             [cljfx.api :as fx]
             [cljfx.ext.node :as fx.ext.node]
@@ -21,7 +22,8 @@
 
 (defonce SCOPE-BUF-SIZE 2048)
 (def scope
-  (atom {:first-time true}))
+  (atom {:first-time true
+         :playing false}))
 
 (def *state
   (atom {:poruka ""
@@ -107,12 +109,20 @@
                          (aget ^floats frames (unchecked-multiply x step))))))
       (reset! y-arrays [y-b y-a]))))
 
+(defn x-axis
+  []
+  (let [x-array (double-array 1100)]
+    (dotimes [i 1100]
+      (aset ^doubles x-array i (double i)))
+    x-array))
+
 (defn root [{:keys [poruka prikazi stop-rec-disabled rec-disabled set-speed-disabled file samples-title loop-line anim-status anim-duration to-x current-octave option chord-name chord-name-disabled instrument]}]
   {:fx/type fx/ext-many
    :desc [{:fx/type :stage
            :showing true
            :title "el-jammin"
            :maximized true
+           :on-close-request {:event/type ::exit}
            :scene {:fx/type :scene
                    :on-key-pressed {:event/type ::press}
                    :root {:fx/type :border-pane
@@ -469,7 +479,18 @@
                                                :content {:fx/type :canvas
                                                          :width 1100
                                                          :height 300
-                                                         :style-class "canvas"}}
+                                                         :style-class "canvas"
+                                                         :draw (fn [^Canvas canvas]
+                                                                 (let [y-array (double-array 1100)
+                                                                       context (.getGraphicsContext2D canvas)
+                                                                       x-array (x-axis)]
+                                                                   (when (= (:first-time @scope) true)
+                                                                     (do
+                                                                       (.translate context 0.0 150.0)
+                                                                       (swap! scope assoc :first-time false)))
+                                                                   (dotimes [x 1100]
+                                                                      (.setFill context javafx.scene.paint.Color/BLUE)
+                                                                      (.fillOval context (int (nth x-array x)) (int (nth y-array x)) 1 1))))}}
                                               ]}
                           }}}
           {:fx/type :text-input-dialog
@@ -772,7 +793,10 @@
     (.clearRect context 0 -150 1100 300)
     (.clearRect context 0 0 1100 300)
     (.setFill context javafx.scene.paint.Color/BLUE)
-    (.fillPolygon context x-array y-a 1100)))
+    (.fillPolygon context x-array y-a 1100)
+    (when (every? #(> 2.0 %) y-a)
+      (dotimes [x 1100]
+        (.fillOval context (int (nth x-array x)) (int (nth y-a x)) 1 1)))))
 
 (defn loop-timer
   [event]
@@ -783,10 +807,6 @@
                 (handle [now]
                   (update-scope-data (:scope @scope))
                   (draw-canvas context)))]
-    (when (= (:first-time @scope) true)
-      (do
-        (.translate context 0.0 150.0)
-        (swap! scope assoc :first-time false)))
     (swap! scope assoc :timer timer)
     (.start timer)))
 
@@ -794,6 +814,7 @@
   [event]
   (let [s  (create-scope 1 :audio-bus false 1100 300)]
     (swap! scope assoc :scope s)
+    (swap! scope assoc :playing true)
     (loop-timer event)))
 
 (defn stop-timer
@@ -801,10 +822,16 @@
   (let [timer (:timer @scope)
         scene (.getScene ^Node (.getTarget event))
         canvas (.lookup scene ".canvas")
-        context (.getGraphicsContext2D canvas)]
+        context (.getGraphicsContext2D canvas)
+        x-array (:x-array (:scope @scope))
+        y-array (double-array 1100)]
     (.stop timer)
+    (swap! scope assoc :playing false)
     (.clearRect context 0 -150 1100 300)
-    (.clearRect context 0 0 1100 300)))
+    (.clearRect context 0 0 1100 300)
+    (dotimes [x 1100]
+      (.setFill context javafx.scene.paint.Color/BLUE)
+      (.fillOval context (int (nth x-array x)) (int (nth y-array x)) 1 1))))
 
 (defn map-event-handler [e]
   (case (:event/type e)
@@ -823,7 +850,8 @@
                  (play-sample selected-item 0))
                (if (not= selected-item nil)
                  (swap! *state assoc :poruka ""))
-               (start-scope (:fx/event e)))
+               (when (= false (:playing @scope))
+                 (start-scope (:fx/event e))))
     ::stop (do (stop)
                (swap! *state assoc :anim-status :stopped)
                (swap! *state assoc :set-speed-disabled false)
@@ -844,20 +872,28 @@
                    (swap! *state assoc :stop-rec-disabled true)
                    (swap! *state assoc :rec-disabled false))
     ::ucitaj-sample (ucitaj-file (:fx/event e))
-    ::press (case (@*state :instrument)
-              "Piano" (play-from-keyboard e piano)
-              "Guitar" (play-from-keyboard e string)
-              "Synthesizer" (play-from-keyboard e overpad))
+    ::press (do
+              (case (@*state :instrument)
+                "Piano" (play-from-keyboard e piano)
+                "Guitar" (play-from-keyboard e string)
+                "Synthesizer" (play-from-keyboard e overpad))
+              (when (= false (:playing @scope))
+                (start-scope (:fx/event e))))
     ::loop (if (= selected-item nil)
              (swap! *state assoc :poruka "You must select sample.")
              (case (re-find #".wav" selected-item)
                nil (swap! *state assoc :poruka "You must select sample.")
                (do (play-sample selected-item 1)
-                   (swap! *state assoc :poruka ""))))
-    ::play-note (case (@*state :instrument)
-                  "Piano" (play-note e piano)
-                  "Guitar" (play-note e string)
-                  "Synthesizer" (play-note e overpad))
+                   (swap! *state assoc :poruka "")
+                   (when (= false (:playing @scope))
+                     (start-scope (:fx/event e))))))
+    ::play-note (do
+                  (case (@*state :instrument)
+                    "Piano" (play-note e piano)
+                    "Guitar" (play-note e string)
+                    "Synthesizer" (play-note e overpad))
+                  (when (= false (:playing @scope))
+                    (start-scope (:fx/event e))))
     ::looper (if (= 0.0 (@*state :loop-end))
                (swap! *state assoc :poruka "You must select end of the loop.")
                (do
@@ -879,7 +915,11 @@
                      (swap! *state assoc :chord-name-disabled false)
                      (swap! *state assoc :chord-name-disabled true)))
     ::set-chord-name (swap! *state assoc :chord-name (:option e))
-    ::set-instrument (swap! *state assoc :instrument (:option e))))
+    ::set-instrument (swap! *state assoc :instrument (:option e))
+    ::exit (do
+             (when (= true (:playing @scope))
+               (.stop (:timer @scope)))
+             (stop))))
 
 (fx/mount-renderer
   *state
