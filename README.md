@@ -6,6 +6,10 @@ A Clojure library designed to ... well, that part is up to you.
 
 FIXME
 
+## Icon reference
+
+Icons8 - https://icons8.com
+
 ## License
 
 Copyright © 2019 FIXME

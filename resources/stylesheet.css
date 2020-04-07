@@ -1,3 +1,84 @@
 .canvas {
 	-fx-background-color: snow;
 }
+
+.btnPlay {
+	-fx-background-image: url("btnPlay.png");
+	-fx-background-size: 50 50;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position:left;   
+    -fx-background-color: transparent;
+	-fx-cursor: hand;
+}
+
+.btnStop {
+	-fx-background-image: url("btnStop.png");
+	-fx-background-size: 50 50;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position:left;   
+    -fx-background-color: transparent;
+	-fx-cursor: hand;
+}
+
+.btnRec {
+	-fx-background-image: url("btnRec.png");
+	-fx-background-size: 50 50;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position:left;   
+    -fx-background-color: transparent;
+	-fx-cursor: hand;
+}
+
+.btnStopRec {
+	-fx-background-image: url("btnStopRec.png");
+	-fx-background-size: 50 50;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position:left;   
+    -fx-background-color: transparent;
+	-fx-cursor: hand;
+}
+
+.btnFile {
+	-fx-background-image: url("btnFile.png");
+	-fx-background-size: 50 50;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position:left;   
+    -fx-background-color: transparent;
+	-fx-cursor: hand;
+}
+
+.btnRepeat {
+	-fx-background-image: url("btnRepeat.png");
+	-fx-background-size: 50 50;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position:left;   
+    -fx-background-color: transparent;
+	-fx-cursor: hand;
+}
+
+.btnLooper {
+	-fx-background-image: url("btnLooper.png");
+	-fx-background-size: 50 50;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position:left;   
+    -fx-background-color: transparent;
+	-fx-cursor: hand;
+}
+
+.btnAddLoop {
+	-fx-background-image: url("btnAddLoop.png");
+	-fx-background-size: 50 50;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position:left;   
+    -fx-background-color: transparent;
+	-fx-cursor: hand;
+}
+
+.btnNote {
+	-fx-background-image: url("btnNote.png");
+	-fx-background-size: 30 30;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position:left;   
+    -fx-background-color: transparent;
+	-fx-cursor: hand;
+}

@@ -47,11 +47,12 @@
          :chord-name-disabled true
          :instrument "Piano"}))
 
-(defn button [{:keys [text event-type disable]}]
+(defn button [{:keys [style-class event-type disable]}]
   {:fx/type :button
-   :text text
-   :pref-width 68
+   :pref-width 50
+   :pref-height 50
    :disable disable
+   :style-class style-class
    :on-action {:event/type event-type}})
 
 (defn- let-refs [refs desc]
@@ -125,6 +126,7 @@
            :on-close-request {:event/type ::exit}
            :scene {:fx/type :scene
                    :on-key-pressed {:event/type ::press}
+                   :stylesheets #{"stylesheet.css"}
                    :root {:fx/type :border-pane
                           :top {:fx/type :grid-pane
                                 :vgap 1
@@ -133,32 +135,32 @@
                                 :children [{:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "Play instrument"}}
                                             :desc {:fx/type button
-                                                   :text "Play"
                                                    :disable false
+                                                   :style-class "btnPlay"
                                                    :event-type ::play}
                                             :grid-pane/column 0
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "Stop all instruments"}}
                                             :desc {:fx/type button
-                                                   :text "Stop"
                                                    :disable false
+                                                   :style-class "btnStop"
                                                    :event-type ::stop}
                                             :grid-pane/column 1
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "Start recording your song"}}
                                             :desc {:fx/type button
-                                                   :text "Rec"
                                                    :disable rec-disabled
+                                                   :style-class "btnRec"
                                                    :event-type ::rec}
                                             :grid-pane/column 2
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "Finish recording"}}
                                             :desc {:fx/type button
-                                                   :text "Stop Rec"
                                                    :disable stop-rec-disabled
+                                                   :style-class "btnStopRec"
                                                    :event-type ::rec-stop}
                                             :grid-pane/column 3
                                             :grid-pane/row 0}
@@ -189,18 +191,18 @@
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "Load sample"}}
-                                            :desc {:fx/type :button
-                                                   :text "Load"
+                                            :desc {:fx/type button
                                                    :disable false
-                                                   :on-action {:event/type ::ucitaj-sample}}
+                                                   :style-class "btnFile"
+                                                   :event-type ::ucitaj-sample}
                                             :grid-pane/column 8
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "Loop sample"}}
-                                            :desc {:fx/type :button
-                                                   :text "Loop"
+                                            :desc {:fx/type button
                                                    :disable false
-                                                   :on-action {:event/type ::loop}}
+                                                   :style-class "btnRepeat"
+                                                   :event-type ::loop}
                                             :grid-pane/column 9
                                             :grid-pane/row 0}
                                            {:fx/type radio-group
@@ -208,54 +210,54 @@
                                             :value instrument
                                             :disable false
                                             :on-action {:event/type ::set-instrument}
-                                            :grid-pane/column 16
+                                            :grid-pane/column 24
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "Start looping your line"}}
-                                            :desc {:fx/type :button
-                                                   :text "Looper"
+                                            :desc {:fx/type button
                                                    :disable false
-                                                   :on-action {:event/type ::looper}}
-                                            :grid-pane/column 17
+                                                   :style-class "btnLooper"
+                                                   :event-type ::looper}
+                                            :grid-pane/column 25
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
-                                            :props {:tooltip {:fx/type :tooltip :text "New looper"}}
-                                            :desc {:fx/type :button
-                                                   :text "New"
+                                            :props {:tooltip {:fx/type :tooltip :text "Add new loop"}}
+                                            :desc {:fx/type button
                                                    :disable false
-                                                   :on-action {:event/type ::new-looper}}
-                                            :grid-pane/column 18
+                                                   :style-class "btnAddLoop"
+                                                   :event-type ::new-looper}
+                                            :grid-pane/column 26
                                             :grid-pane/row 0}
                                            {:fx/type :label
                                             :text "Octave"
-                                            :grid-pane/column 19
+                                            :grid-pane/column 27
                                             :grid-pane/row 0}
                                            {:fx/type :combo-box
                                             :value current-octave
                                             :on-value-changed {:event/type ::set-octave}
                                             :items [1 2 3 4 5 6 7 8]
-                                            :grid-pane/column 20
+                                            :grid-pane/column 28
                                             :grid-pane/row 0}
                                            {:fx/type radio-group
                                             :options ["Note" "Chord"]
                                             :value option
                                             :disable false
                                             :on-action {:event/type ::set-option}
-                                            :grid-pane/column 21
+                                            :grid-pane/column 29
                                             :grid-pane/row 0}
                                            {:fx/type radio-group
                                             :options ["Major" "Minor"]
                                             :value chord-name
                                             :disable chord-name-disabled
                                             :on-action {:event/type ::set-chord-name}
-                                            :grid-pane/column 22
+                                            :grid-pane/column 30
                                             :grid-pane/row 0}
                                            {:fx/type :label
                                             :text poruka
                                             :text-fill "#ff0000"
                                             :grid-pane/column 0
                                             :grid-pane/row 1
-                                            :grid-pane/column-span 3}]}
+                                            :grid-pane/column-span 5}]}
                           :left {:fx/type :tab-pane
                                  :pref-width 350
                                  :pref-height 540
@@ -322,7 +324,9 @@
                                                             :grid-pane/row (inc j)
                                                             :grid-pane/hgrow :always
                                                             :grid-pane/vgrow :always
-                                                            :pref-width 30
+                                                             :pref-width 30
+                                                             :pref-height 30
+                                                             :style-class "btnNote"
                                                              :style {:-fx-background-color (if (= 0 (mod (count (filter (has-value :i i :j (dec j)) loop-line)) 2)) :lightgray :green)}
                                                              :on-action {:event/type ::play-note :j (dec j) :i i}})))
                                                           
