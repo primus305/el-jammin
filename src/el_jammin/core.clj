@@ -128,6 +128,7 @@
                    :on-key-pressed {:event/type ::press}
                    :stylesheets #{"stylesheet.css"}
                    :root {:fx/type :border-pane
+                          :style-class "background"
                           :top {:fx/type :grid-pane
                                 :vgap 1
                                 :hgap 8
@@ -210,7 +211,7 @@
                                             :value instrument
                                             :disable false
                                             :on-action {:event/type ::set-instrument}
-                                            :grid-pane/column 24
+                                            :grid-pane/column 18
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "Start looping your line"}}
@@ -218,7 +219,7 @@
                                                    :disable false
                                                    :style-class "btnLooper"
                                                    :event-type ::looper}
-                                            :grid-pane/column 25
+                                            :grid-pane/column 19
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
                                             :props {:tooltip {:fx/type :tooltip :text "Add new loop"}}
@@ -226,31 +227,31 @@
                                                    :disable false
                                                    :style-class "btnAddLoop"
                                                    :event-type ::new-looper}
-                                            :grid-pane/column 26
+                                            :grid-pane/column 20
                                             :grid-pane/row 0}
                                            {:fx/type :label
                                             :text "Octave"
-                                            :grid-pane/column 27
+                                            :grid-pane/column 26
                                             :grid-pane/row 0}
                                            {:fx/type :combo-box
                                             :value current-octave
                                             :on-value-changed {:event/type ::set-octave}
                                             :items [1 2 3 4 5 6 7 8]
-                                            :grid-pane/column 28
+                                            :grid-pane/column 27
                                             :grid-pane/row 0}
                                            {:fx/type radio-group
                                             :options ["Note" "Chord"]
                                             :value option
                                             :disable false
                                             :on-action {:event/type ::set-option}
-                                            :grid-pane/column 29
+                                            :grid-pane/column 28
                                             :grid-pane/row 0}
                                            {:fx/type radio-group
                                             :options ["Major" "Minor"]
                                             :value chord-name
                                             :disable chord-name-disabled
                                             :on-action {:event/type ::set-chord-name}
-                                            :grid-pane/column 30
+                                            :grid-pane/column 29
                                             :grid-pane/row 0}
                                            {:fx/type :label
                                             :text poruka
@@ -307,6 +308,7 @@
                                                            :grid-pane/row 1
                                                            :grid-pane/hgrow :always
                                                            :grid-pane/vgrow :always
+                                                           :style-class "loopEnd"
                                                            :text (str (double (/ i 4)))
                                                            :on-mouse-clicked {:event/type ::loop-end :i (/ i 4)}
                                                            :style (if (= i (* (@*state :loop-end) 4)) {:-fx-background-color :yellow} {})})
@@ -324,8 +326,8 @@
                                                             :grid-pane/row (inc j)
                                                             :grid-pane/hgrow :always
                                                             :grid-pane/vgrow :always
-                                                             :pref-width 30
-                                                             :pref-height 30
+                                                             :pref-width 40
+                                                             :pref-height 40
                                                              :style-class "btnNote"
                                                              :style {:-fx-background-color (if (= 0 (mod (count (filter (has-value :i i :j (dec j)) loop-line)) 2)) :lightgray :green)}
                                                              :on-action {:event/type ::play-note :j (dec j) :i i}})))
@@ -347,15 +349,16 @@
                                                             )}}
                           :bottom {:fx/type :flow-pane
                                    :vgap 5
-                                   :hgap 50
+                                   :hgap 5
                                    :padding 5
                                    :pref-height 380
                                    :children [{:fx/type :titled-pane
                                                :text "Volume control"
                                                :pref-height 360
+                                               :pref-width 800
                                                :content {:fx/type :grid-pane
                                                          :vgap 20
-                                                         :hgap 40
+                                                         :hgap 50
                                                          :padding 5
                                                          :children [{:fx/type :slider
                                                                      :min 0
@@ -493,7 +496,7 @@
                                                                        (.translate context 0.0 150.0)
                                                                        (swap! scope assoc :first-time false)))
                                                                    (dotimes [x 1100]
-                                                                      (.setFill context javafx.scene.paint.Color/BLUE)
+                                                                      (.setFill context javafx.scene.paint.Color/STEELBLUE)
                                                                       (.fillOval context (int (nth x-array x)) (int (nth y-array x)) 1 1))))}}
                                               ]}
                           }}}
@@ -712,7 +715,7 @@
   []
   (do
     (swap! *state assoc :anim-duration (* (last (@*state :loop-lines-end)) (double (/ 60 (:bpm m)))))
-    (swap! *state assoc :to-x (* 160 (last (@*state :loop-lines-end))))
+    (swap! *state assoc :to-x (* 200 (last (@*state :loop-lines-end))))
     (swap! *state assoc :anim-status :running)))
 
 (defn clean-and-play
@@ -796,7 +799,7 @@
         x-array (:x-array (:scope @scope))]
     (.clearRect context 0 -150 1100 300)
     (.clearRect context 0 0 1100 300)
-    (.setFill context javafx.scene.paint.Color/BLUE)
+    (.setFill context javafx.scene.paint.Color/STEELBLUE)
     (.fillPolygon context x-array y-a 1100)
     (when (every? #(> 2.0 %) y-a)
       (dotimes [x 1100]
@@ -834,7 +837,7 @@
     (.clearRect context 0 -150 1100 300)
     (.clearRect context 0 0 1100 300)
     (dotimes [x 1100]
-      (.setFill context javafx.scene.paint.Color/BLUE)
+      (.setFill context javafx.scene.paint.Color/STEELBLUE)
       (.fillOval context (int (nth x-array x)) (int (nth y-array x)) 1 1))))
 
 (defn map-event-handler [e]
@@ -906,7 +909,9 @@
                  (case (@*state :instrument)
                    "Piano" (clean-and-play piano)
                    "Guitar" (clean-and-play string)
-                   "Synthesizer" (clean-and-play overpad))))
+                   "Synthesizer" (clean-and-play overpad))
+                 (when (= false (:playing @scope))
+                   (start-scope (:fx/event e)))))
     ::loop-end (swap! *state assoc :loop-end (:i e))
     ::new-looper (if (>= (count (@*state :loop-lines)) 3)
                    (swap! *state assoc :poruka "Maximum number of loops.")

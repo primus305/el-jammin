@@ -76,9 +76,18 @@
 
 .btnNote {
 	-fx-background-image: url("btnNote.png");
-	-fx-background-size: 30 30;
+	-fx-background-size: 40 40;
     -fx-background-repeat: no-repeat;
     -fx-background-position:left;   
     -fx-background-color: transparent;
+	-fx-cursor: hand;
+}
+
+.background {
+	-fx-background-image: url("bg.jpg");
+	-fx-background-size: 100% 100%;
+}
+
+.loopEnd {
 	-fx-cursor: hand;
 }
