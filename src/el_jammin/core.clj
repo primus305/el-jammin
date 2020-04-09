@@ -17,7 +17,6 @@
 (def m (metronome 128))
 (def kick-side-bar '("Kick & Clap 1" "Kick" "Kick & Clap 2" "Kick & Clap 3" "Kick & Snare"))
 (def kontra-side-bar '("Hi-hat 1" "Hi-hat 2" "Hi-hat 3" "Hi-hat 4" "Hi-hat 5"))
-(def selected-item nil)
 (def notes '("C" "C#" "D" "D#" "E" "F" "F#" "G" "G#" "A" "A#" "B"))
 
 (defonce SCOPE-BUF-SIZE 2048)
@@ -26,7 +25,8 @@
          :playing false}))
 
 (def *state
-  (atom {:poruka ""
+  (atom {:selected-item nil
+         :poruka ""
          :prikazi false
          :stop-rec-disabled true
          :rec-disabled false
@@ -45,7 +45,9 @@
          :option "Note"
          :chord-name "Major"
          :chord-name-disabled true
-         :instrument "Piano"}))
+         :instrument "Piano"
+         :loop-instrument "Piano"
+         :l true}))
 
 (defn button [{:keys [style-class event-type disable]}]
   {:fx/type :button
@@ -733,6 +735,7 @@
         octave (@*state :current-octave)
         option (@*state :option)
         chord-name (keyword (clojure.string/lower-case (@*state :chord-name)))]
+    (when (= cd KeyCode/L) (swap! *state assoc :l (not (@*state :l))))
     (when (= cd KeyCode/A) (if (= option "Note") (instr (note (str "C"octave))) (play-chord instr (note (str "C"octave)) chord-name)))
     (when (= cd KeyCode/W) (if (= option "Note") (instr (note (str "C#"octave))) (play-chord instr (note (str "C#"octave)) chord-name)))
     (when (= cd KeyCode/S) (if (= option "Note") (instr (note (str "D"octave))) (play-chord instr (note (str "D"octave)) chord-name)))
@@ -840,29 +843,150 @@
       (.setFill context javafx.scene.paint.Color/STEELBLUE)
       (.fillOval context (int (nth x-array x)) (int (nth y-array x)) 1 1))))
 
+(defn safety-start-scope
+  [event]
+  (when (= false (:playing @scope))
+    (start-scope (:fx/event event))))
+
+(defn event-note-play
+  [event]
+  (case (@*state :loop-instrument)
+    "Piano" (play-note event piano)
+    "Guitar" (play-note event string)
+    "Synthesizer" (play-note event overpad)))
+
+(defn event-clean-and-play
+  []
+  (case (@*state :loop-instrument)
+    "Piano" (clean-and-play piano)
+    "Guitar" (clean-and-play string)
+    "Synthesizer" (clean-and-play overpad)))
+
+(defn event-play-from-keyboard
+  [event]
+  (case (@*state :instrument)
+    "Piano" (play-from-keyboard event piano)
+    "Guitar" (play-from-keyboard event string)
+    "Synthesizer" (play-from-keyboard event overpad)))
+
+(defn play-selected-item
+  []
+  (let [selected-item (@*state :selected-item)]
+    (case selected-item
+      "Kick & Clap 1" (kick-clap1 (m))
+      "Kick" (my-kick (m))
+      "Kick & Clap 2" (kick-clap2 (m))
+      "Kick & Clap 3" (kick-clap3 (m))
+      "Kick & Snare" (kick-snare (m))
+      "Hi-hat 1" (my-hihat1 (m))
+      "Hi-hat 2" (my-hihat2 (m))
+      "Hi-hat 3" (my-hihat3 (m))
+      "Hi-hat 4" (my-hihat4 (m))
+      "Hi-hat 5" (my-hihat5 (m))
+      nil (swap! *state assoc :poruka "You must select instrument.")
+      (play-sample selected-item 0))))
+
+(defn on-play
+  [event]
+  (do (play-selected-item)
+      (if (not= (@*state :selected-item) nil)
+        (swap! *state assoc :poruka ""))
+      (safety-start-scope event)))
+
+(defn on-stop
+  [event]
+  (do (stop)
+      (swap! *state assoc :anim-status :stopped)
+      (swap! *state assoc :set-speed-disabled false)
+      (stop-timer (:fx/event event))))
+
+(defn on-rec-stop
+  []
+  (do (recording-stop)
+      (swap! *state assoc :stop-rec-disabled true)
+      (swap! *state assoc :rec-disabled false)))
+
+(defn on-press
+  [event]
+  (do
+    (event-play-from-keyboard event)
+    (safety-start-scope event)))
+
+(defn loop-sample
+  [selected-item event]
+  (case (re-find #".wav" selected-item)
+    nil (swap! *state assoc :poruka "You must select sample.")
+    (do (play-sample selected-item 1)
+        (swap! *state assoc :poruka "")
+        (safety-start-scope event))))
+
+(defn on-loop
+  [event]
+  (let [selected-item (@*state :selected-item)]
+    (if (= selected-item nil)
+      (swap! *state assoc :poruka "You must select sample.")
+      (loop-sample selected-item event))))
+
+(defn on-play-note
+  [event]
+  (do
+    (event-note-play event)
+    (safety-start-scope event)))
+
+(defn on-looper-if-true
+  [event]
+  (do
+    (swap! *state assoc :poruka "")
+    (swap! *state assoc :set-speed-disabled true)
+    (event-clean-and-play)
+    (safety-start-scope event)))
+
+(defn on-looper
+  [event]
+  (if (= 0.0 (@*state :loop-end))
+    (swap! *state assoc :poruka "You must select end of the loop.")
+    (on-looper-if-true event)))
+
+(defn on-new-looper-true
+  []
+  (swap! *state assoc :loop-line '())
+  (swap! *state assoc :loop-end 0.0))
+
+(defn on-new-looper
+  []
+  (if (>= (count (@*state :loop-lines)) 3)
+    (swap! *state assoc :poruka "Maximum number of loops.")
+    (on-new-looper-true)))
+
+(defn enable-chord-name
+  [event]
+  (if (= (:option event) "Chord")
+    (swap! *state assoc :chord-name-disabled false)
+    (swap! *state assoc :chord-name-disabled true)))
+
+(defn on-set-option
+  [event]
+  (do
+    (swap! *state assoc :option (:option event))
+    (enable-chord-name event)))
+
+(defn on-set-instrument
+  [event]
+  (if (= (@*state :l) true)
+    (swap! *state assoc :instrument (:option event))
+    (swap! *state assoc :loop-instrument (:option event))))
+
+(defn on-exit
+  []
+  (do
+    (when (= true (:playing @scope))
+      (.stop (:timer @scope)))
+    (stop)))
+
 (defn map-event-handler [e]
   (case (:event/type e)
-    ::play (do (case selected-item
-                 "Kick & Clap 1" (kick-clap1 (m))
-                 "Kick" (my-kick (m))
-                 "Kick & Clap 2" (kick-clap2 (m))
-                 "Kick & Clap 3" (kick-clap3 (m))
-                 "Kick & Snare" (kick-snare (m))
-                 "Hi-hat 1" (my-hihat1 (m))
-                 "Hi-hat 2" (my-hihat2 (m))
-                 "Hi-hat 3" (my-hihat3 (m))
-                 "Hi-hat 4" (my-hihat4 (m))
-                 "Hi-hat 5" (my-hihat5 (m))
-                 nil (swap! *state assoc :poruka "You must select instrument.")
-                 (play-sample selected-item 0))
-               (if (not= selected-item nil)
-                 (swap! *state assoc :poruka ""))
-               (when (= false (:playing @scope))
-                 (start-scope (:fx/event e))))
-    ::stop (do (stop)
-               (swap! *state assoc :anim-status :stopped)
-               (swap! *state assoc :set-speed-disabled false)
-               (stop-timer (:fx/event e)))
+    ::play (on-play e)
+    ::stop (on-stop e)
     ::set-volume (volume (/ (:fx/event e) 100))
     ::set-speed (m :bpm (:fx/event e))
     ::set-volume-k (inst-volume! quick-kick (/ (:fx/event e) 100))
@@ -873,62 +997,21 @@
     ::set-volume-guitar (inst-volume! string (/ (:fx/event e) 100))
     ::set-volume-synth (inst-volume! overpad (/ (:fx/event e) 100))
     ::set-volume-sample (inst-volume! sample-inst (/ (:fx/event e) 100))
-    ::select (def selected-item (:fx/event e))
+    ::select (swap! *state assoc :selected-item (:fx/event e))
     ::rec (swap! *state assoc :prikazi true)
-    ::rec-stop (do (recording-stop)
-                   (swap! *state assoc :stop-rec-disabled true)
-                   (swap! *state assoc :rec-disabled false))
+    ::rec-stop (on-rec-stop)
     ::ucitaj-sample (ucitaj-file (:fx/event e))
-    ::press (do
-              (case (@*state :instrument)
-                "Piano" (play-from-keyboard e piano)
-                "Guitar" (play-from-keyboard e string)
-                "Synthesizer" (play-from-keyboard e overpad))
-              (when (= false (:playing @scope))
-                (start-scope (:fx/event e))))
-    ::loop (if (= selected-item nil)
-             (swap! *state assoc :poruka "You must select sample.")
-             (case (re-find #".wav" selected-item)
-               nil (swap! *state assoc :poruka "You must select sample.")
-               (do (play-sample selected-item 1)
-                   (swap! *state assoc :poruka "")
-                   (when (= false (:playing @scope))
-                     (start-scope (:fx/event e))))))
-    ::play-note (do
-                  (case (@*state :instrument)
-                    "Piano" (play-note e piano)
-                    "Guitar" (play-note e string)
-                    "Synthesizer" (play-note e overpad))
-                  (when (= false (:playing @scope))
-                    (start-scope (:fx/event e))))
-    ::looper (if (= 0.0 (@*state :loop-end))
-               (swap! *state assoc :poruka "You must select end of the loop.")
-               (do
-                 (swap! *state assoc :poruka "")
-                 (swap! *state assoc :set-speed-disabled true)
-                 (case (@*state :instrument)
-                   "Piano" (clean-and-play piano)
-                   "Guitar" (clean-and-play string)
-                   "Synthesizer" (clean-and-play overpad))
-                 (when (= false (:playing @scope))
-                   (start-scope (:fx/event e)))))
+    ::press (on-press e)
+    ::loop (on-loop e)
+    ::play-note (on-play-note e)
+    ::looper (on-looper e)
     ::loop-end (swap! *state assoc :loop-end (:i e))
-    ::new-looper (if (>= (count (@*state :loop-lines)) 3)
-                   (swap! *state assoc :poruka "Maximum number of loops.")
-                   ((swap! *state assoc :loop-line '())
-                    (swap! *state assoc :loop-end 0.0)))
+    ::new-looper (on-new-looper)
     ::set-octave (swap! *state assoc :current-octave (:fx/event e))
-    ::set-option (do
-                   (swap! *state assoc :option (:option e))
-                   (if (= (:option e) "Chord")
-                     (swap! *state assoc :chord-name-disabled false)
-                     (swap! *state assoc :chord-name-disabled true)))
+    ::set-option (on-set-option e)
     ::set-chord-name (swap! *state assoc :chord-name (:option e))
-    ::set-instrument (swap! *state assoc :instrument (:option e))
-    ::exit (do
-             (when (= true (:playing @scope))
-               (.stop (:timer @scope)))
-             (stop))))
+    ::set-instrument (on-set-instrument e)
+    ::exit (on-exit)))
 
 (fx/mount-renderer
   *state
