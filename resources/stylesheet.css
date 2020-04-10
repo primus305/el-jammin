@@ -91,3 +91,12 @@
 .loopEnd {
 	-fx-cursor: hand;
 }
+
+.btnRestartLooper {
+	-fx-background-image: url("btnRestartLooper.png");
+	-fx-background-size: 50 50;
+    -fx-background-repeat: no-repeat;
+    -fx-background-position:left;   
+    -fx-background-color: transparent;
+	-fx-cursor: hand;
+}

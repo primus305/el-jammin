@@ -36,6 +36,7 @@
          :samples-title '()
          :loop-line '()
          :loop-end 0.0
+         :loop-line-id 1
          :loop-lines []
          :loop-lines-end []
          :anim-status :stopped
@@ -47,7 +48,9 @@
          :chord-name-disabled true
          :instrument "Piano"
          :loop-instrument "Piano"
-         :l true}))
+         :l true
+         :looper-live false
+         :add-loop-line false}))
 
 (defn button [{:keys [style-class event-type disable]}]
   {:fx/type :button
@@ -224,12 +227,20 @@
                                             :grid-pane/column 19
                                             :grid-pane/row 0}
                                            {:fx/type fx.ext.node/with-tooltip-props
-                                            :props {:tooltip {:fx/type :tooltip :text "Add new loop"}}
+                                            :props {:tooltip {:fx/type :tooltip :text "Add new loop line"}}
                                             :desc {:fx/type button
                                                    :disable false
                                                    :style-class "btnAddLoop"
                                                    :event-type ::new-looper}
                                             :grid-pane/column 20
+                                            :grid-pane/row 0}
+                                           {:fx/type fx.ext.node/with-tooltip-props
+                                            :props {:tooltip {:fx/type :tooltip :text "Restart your looper"}}
+                                            :desc {:fx/type button
+                                                   :disable false
+                                                   :style-class "btnRestartLooper"
+                                                   :event-type ::restart-looper}
+                                            :grid-pane/column 21
                                             :grid-pane/row 0}
                                            {:fx/type :label
                                             :text "Octave"
@@ -260,7 +271,7 @@
                                             :text-fill "#ff0000"
                                             :grid-pane/column 0
                                             :grid-pane/row 1
-                                            :grid-pane/column-span 5}]}
+                                            :grid-pane/column-span 7}]}
                           :left {:fx/type :tab-pane
                                  :pref-width 350
                                  :pref-height 540
@@ -707,7 +718,7 @@
 
 (defn clean-loop-line
   []
-  (when (< (count (@*state :loop-lines)) 3)
+  (when (< (count (@*state :loop-lines)) (@*state :loop-line-id))
     (let [cleaned-line-loop (cleaned-loop-line)]
       (swap! *state assoc :loop-line cleaned-line-loop)
       (swap! *state assoc :loop-lines (conj (@*state :loop-lines) cleaned-line-loop))
@@ -898,6 +909,7 @@
   (do (stop)
       (swap! *state assoc :anim-status :stopped)
       (swap! *state assoc :set-speed-disabled false)
+      (swap! *state assoc :looper-live false)
       (stop-timer (:fx/event event))))
 
 (defn on-rec-stop
@@ -936,6 +948,8 @@
 (defn on-looper-if-true
   [event]
   (do
+    (swap! *state assoc :looper-live true)
+    (swap! *state assoc :add-new-loop true)
     (swap! *state assoc :poruka "")
     (swap! *state assoc :set-speed-disabled true)
     (event-clean-and-play)
@@ -949,14 +963,49 @@
 
 (defn on-new-looper-true
   []
+  (swap! *state assoc :add-new-loop false)
   (swap! *state assoc :loop-line '())
-  (swap! *state assoc :loop-end 0.0))
+  (swap! *state assoc :loop-end 0.0)
+  (swap! *state assoc :loop-line-id (inc (@*state :loop-line-id))))
+
+(defn on-new-looper-capacity-true
+  []
+  (if (= true (@*state :add-new-loop))
+    (on-new-looper-true)
+    (swap! *state assoc :poruka "You already have line which is not looped.")))
 
 (defn on-new-looper
   []
   (if (>= (count (@*state :loop-lines)) 3)
     (swap! *state assoc :poruka "Maximum number of loops.")
-    (on-new-looper-true)))
+    (on-new-looper-capacity-true)))
+
+(defn restart-all-components
+  [event]
+  (when (= true (@*state :looper-live))
+    (on-stop event)))
+
+(defn check-if-restart-message
+  []
+  (if (= 0 (count (@*state :loop-lines)))
+    (swap! *state assoc :poruka "Your looper is already empty.")
+    (swap! *state assoc :poruka "Your looper is now empty.")))
+
+(defn check-if-restart
+  []
+  (when (> (count (@*state :loop-lines)) 0)
+    (do
+      (swap! *state assoc :loop-lines [])
+      (swap! *state assoc :loop-lines-end [])
+      (swap! *state assoc :loop-line-id 1)
+      (swap! *state assoc :loop-line '())
+      (swap! *state assoc :loop-end 0.0))))
+
+(defn on-restart-looper
+  [event]
+  (check-if-restart-message)
+  (check-if-restart)
+  (restart-all-components event))
 
 (defn enable-chord-name
   [event]
@@ -1007,6 +1056,7 @@
     ::looper (on-looper e)
     ::loop-end (swap! *state assoc :loop-end (:i e))
     ::new-looper (on-new-looper)
+    ::restart-looper (on-restart-looper e)
     ::set-octave (swap! *state assoc :current-octave (:fx/event e))
     ::set-option (on-set-option e)
     ::set-chord-name (swap! *state assoc :chord-name (:option e))
