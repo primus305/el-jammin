@@ -1,4 +1,4 @@
-(ns el-jammin.konekcija
+(ns el-jammin.server.connection
     (:use [overtone.core]))
 
 
