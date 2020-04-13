@@ -105,3 +105,9 @@
     1 (play-looper (m) first instr)
     2 (play-looper (m) second instr)
     3 (play-looper (m) last instr)))
+
+(defn count-loop-line []
+	(count (@*state :loop-line)))
+	
+(defn empty-loop-line []
+	(swap! *state assoc :loop-line '()))

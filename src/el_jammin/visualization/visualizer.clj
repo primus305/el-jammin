@@ -14,13 +14,6 @@
       (aset ^doubles x-array i (double i)))
     x-array))
 
-(defn translate-canvas
-  [context]
-  (when (= (:first-time @scope) true)
-    (do
-      (.translate context 0.0 150.0)
-      (swap! scope assoc :first-time false))))
-
 (defn update-scope-data
   [s]
   (let [{:keys [buf size y-arrays x-array]} s

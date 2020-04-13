@@ -3,7 +3,8 @@
            [javafx.scene.control DialogEvent Dialog]
            [javafx.stage FileChooser]
            [javafx.scene Node]
-           [javafx.scene.canvas Canvas])
+           [javafx.scene.canvas Canvas]
+           [javafx.scene.image Image])
   (:require [el-jammin.server.connection]
             [el-jammin.state.state :refer :all]
             [el-jammin.rhythm.looper :refer :all]
@@ -18,6 +19,11 @@
         [overtone.inst.piano]
         [overtone.inst.synth]
         [overtone.studio util]))
+
+(def el-jammin-icon (new Image "../resources/jam.png"))
+
+(def canvas-translate
+  (atom {:first-time true}))
 
 (defn button [{:keys [style-class event-type disable]}]
   {:fx/type :button
@@ -43,6 +49,13 @@
       (let-refs {::transition (assoc transition :node tn)}
         tn))))
 
+(defn translate-canvas
+  [context]
+  (when (= (:first-time @canvas-translate) true)
+    (do
+      (.translate context 0.0 150.0)
+      (swap! canvas-translate assoc :first-time false))))
+
 (defn radio-group [{:keys [options value on-action disable]}]
   {:fx/type fx/ext-let-refs
    :refs {::toggle-group {:fx/type :toggle-group}}
@@ -64,6 +77,7 @@
            :showing true
            :title "el-jammin"
            :maximized true
+           :icons [el-jammin-icon]
            :on-close-request {:event/type ::exit}
            :scene {:fx/type :scene
                    :on-key-pressed {:event/type ::press}
@@ -296,15 +310,16 @@
                                                                         :height 10
                                                                         :fill :red}}]
                                                             )}}
-                          :bottom {:fx/type :flow-pane
+                          :bottom {:fx/type :grid-pane
                                    :vgap 5
                                    :hgap 5
                                    :padding 5
-                                   :pref-height 380
                                    :children [{:fx/type :titled-pane
                                                :text "Volume control"
                                                :pref-height 360
                                                :pref-width 800
+                                               :grid-pane/column 0
+                                               :grid-pane/row 0
                                                :content {:fx/type :grid-pane
                                                          :vgap 20
                                                          :hgap 50
@@ -432,6 +447,8 @@
                                               {:fx/type :titled-pane
                                                :text "Visualizer"
                                                :pref-height 360
+                                               :grid-pane/column 1
+                                               :grid-pane/row 0
                                                :content {:fx/type :canvas
                                                          :width 1100
                                                          :height 300

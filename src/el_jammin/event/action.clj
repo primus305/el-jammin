@@ -217,9 +217,43 @@
     (swap! *state assoc :instrument (:option event))
     (swap! *state assoc :loop-instrument (:option event))))
 
+(defn set-default-state
+	[]
+	(swap! *state assoc :loop-lines [])
+	(swap! *state assoc :loop-line '())
+	(swap! *state assoc :selected-item nil)
+	(swap! *state assoc :add-loop-line false)
+	(swap! *state assoc :chord-name-disabled true)
+	(swap! *state assoc :to-x 0)
+	(swap! *state assoc :loop-line-id 1)
+	(swap! *state assoc :l true)
+	(swap! *state assoc :option "Note")
+	(swap! *state assoc :looper-live false)
+	(swap! *state assoc :loop-end 0.0)
+	(swap! *state assoc :loop-lines-end [])
+	(swap! *state assoc :poruka "")
+	(swap! *state assoc :prikazi false)
+	(swap! *state assoc :stop-rec-disabled true)
+	(swap! *state assoc :rec-disabled false)
+	(swap! *state assoc :set-speed-disabled false)
+	(swap! *state assoc :file nil)
+	(swap! *state assoc :samples '())
+	(swap! *state assoc :samples-title '())
+	(swap! *state assoc :anim-status :stopped)
+	(swap! *state assoc :anim-duration 0.0)
+	(swap! *state assoc :current-octave 1)
+	(swap! *state assoc :instrument "Piano")
+	(swap! *state assoc :loop-instrument "Piano")
+	(swap! *state assoc :chord-name "Major")
+	(swap! scope assoc :first-time true)
+	(swap! scope assoc :playing false))
+
 (defn on-exit
   []
   (do
     (when (= true (:playing @scope))
       (.stop (:timer @scope)))
-    (stop)))
+    (stop)
+	(set-default-state)))
+
+(defn get-state [] *state)
